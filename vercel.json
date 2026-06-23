@@ -1,0 +1,10 @@
+{
+  "rewrites": [
+    { "source": "/timer", "destination": "/timer/index.html" },
+    { "source": "/x", "destination": "/x/index.html" }
+  ],
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/404.html", "status": 404 }
+  ]
+}
