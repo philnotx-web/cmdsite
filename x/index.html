@@ -340,7 +340,7 @@
 </head>
 <body>
 
-    <video id="bg-video" autoplay loop playsinline muted>
+    <video id="bg-video" loop playsinline preload="auto">
         <source src="/x/video.mp4" type="video/mp4">
     </video>
     <div id="bg-overlay"></div>
@@ -488,16 +488,40 @@
         const slider  = document.getElementById('vol-slider');
         const overlay = document.getElementById('enter-overlay');
 
-        video.muted  = true;
+        // Freeze on first frame on load — do not play, do not autoplay
+        video.muted = true;
         video.volume = 0.5;
+        video.currentTime = 0;
+
+        // Ensure first frame is visible once metadata loads
+        video.addEventListener('loadedmetadata', () => {
+            video.currentTime = 0;
+        });
 
         function enterSite() {
+            // Unmute and play with audio when user clicks enter
+            video.muted  = false;
+            video.volume = parseFloat(slider.value);
+
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(() => {
+                    // Fallback: browser blocked audio; play muted then unmute
+                    video.muted = true;
+                    video.play().then(() => {
+                        video.muted  = false;
+                        video.volume = parseFloat(slider.value);
+                    });
+                });
+            }
+
             overlay.classList.add('fade-out');
             setTimeout(() => overlay.remove(), 750);
         }
 
         slider.addEventListener('input', () => {
             video.volume = parseFloat(slider.value);
+            if (!video.paused) video.muted = false;
         });
 
         /* ── 3D Tilt (guns.lol style) ── */
