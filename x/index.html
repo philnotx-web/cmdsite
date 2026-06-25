@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>stole — stole.cc</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bitcount+Prop+Single:wght@100..900&family=Source+Code+Pro:wght@400;600;700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --accent-orange: #FF8C42;
+            --accent-coral:  #FF6B35;
+            --accent-pink:   #F77F88;
+            --accent-gold:   #FFB703;
+        }
+
+        #bg-video {
+            position: fixed;
+            inset: 0;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            z-index: 0;
+            filter: brightness(0.45);
+        }
+
+        #bg-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 1;
+        }
+
+        /* ── Click-to-Enter Overlay ── */
+        #enter-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(6,6,6,0.52);
+            backdrop-filter: blur(14px) saturate(1.3);
+            -webkit-backdrop-filter: blur(14px) saturate(1.3);
+            cursor: pointer;
+            transition: opacity 0.7s cubic-bezier(0.4,0,0.2,1);
+        }
+        #enter-overlay.fade-out {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .enter-text {
+            font-family: 'Bitcount Prop Single', monospace;
+            font-size: 42px;
+            font-weight: 400;
+            color: rgba(255,255,255,0.82);
+            letter-spacing: 2px;
+            text-transform: lowercase;
+            animation: enter-pulse 2.8s ease-in-out infinite;
+            transition: color 0.2s, text-shadow 0.2s;
+            user-select: none;
+        }
+        #enter-overlay:hover .enter-text {
+            color: #fff;
+            text-shadow: 0 0 40px rgba(255,140,66,0.55), 0 0 80px rgba(255,140,66,0.2);
+        }
+        @keyframes enter-pulse {
+            0%,100% { text-shadow: 0 0 20px rgba(255,140,66,0.15); }
+            50%      { text-shadow: 0 0 50px rgba(255,140,66,0.4), 0 0 100px rgba(255,140,66,0.15); }
+        }
+
+        /* Volume control */
+        #vol-wrap {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(15,15,15,0.75);
+            border: 1px solid rgba(255,140,66,0.25);
+            border-radius: 4px;
+            padding: 8px 14px;
+            backdrop-filter: blur(6px);
+        }
+        #vol-wrap svg { flex-shrink: 0; }
+        #vol-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 90px; height: 3px;
+            border-radius: 2px;
+            background: rgba(255,140,66,0.25);
+            outline: none;
+            cursor: pointer;
+        }
+        #vol-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px; height: 12px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-orange), var(--accent-coral));
+            cursor: pointer;
+        }
+        #vol-slider::-moz-range-thumb {
+            width: 12px; height: 12px;
+            border: none; border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-orange), var(--accent-coral));
+            cursor: pointer;
+        }
+
+        body {
+            font-family: 'Montserrat', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 20px 100px;
+            position: relative;
+        }
+
+        .card {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            max-width: 480px;
+            background: rgba(12,12,12,0.78);
+            border: 1px solid rgba(255,140,66,0.22);
+            border-radius: 6px;
+            padding: 36px 32px 32px;
+            backdrop-filter: blur(18px);
+            box-shadow:
+                0 0 40px rgba(255,140,66,0.08),
+                inset 0 0 40px rgba(255,140,66,0.02);
+            animation: fadeUp 0.7s ease both;
+            transform-style: preserve-3d;
+            transform: perspective(1000px) rotateX(0deg) rotateY(0deg);
+            transition: box-shadow 0.15s ease, border-color 0.15s ease;
+            will-change: transform;
+        }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,140,66,0.35), transparent);
+            border-radius: 6px 6px 0 0;
+            transition: opacity 0.3s;
+        }
+        /* Glare overlay (guns.lol style) */
+        .card::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 6px;
+            pointer-events: none;
+            background: radial-gradient(
+                circle at var(--mx, 50%) var(--my, 50%),
+                rgba(255,140,66,0.13) 0%,
+                transparent 65%
+            );
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .card:hover::after { opacity: 1; }
+        .card:hover {
+            border-color: rgba(255,140,66,0.5);
+            box-shadow:
+                0 0 60px rgba(255,140,66,0.18),
+                0 30px 60px -20px rgba(0,0,0,0.6),
+                inset 0 0 40px rgba(255,140,66,0.04);
+        }
+
+        .avatar-wrap {
+            position: relative;
+            width: 90px; height: 90px;
+            margin: 0 auto 18px;
+        }
+        .avatar {
+            width: 90px; height: 90px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid rgba(255,140,66,0.4);
+            display: block;
+            transition: border-color 0.3s;
+        }
+        .avatar:hover { border-color: var(--accent-orange); }
+        .avatar-ring {
+            position: absolute;
+            inset: -4px;
+            border-radius: 50%;
+            border: 1px solid rgba(255,140,66,0.2);
+            animation: spin 8s linear infinite;
+            pointer-events: none;
+        }
+
+        .name-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .username {
+            font-family: 'Source Code Pro', monospace;
+            font-size: 22px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-gold), var(--accent-orange), var(--accent-pink));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .bio {
+            font-size: 12px;
+            font-weight: 500;
+            color: rgba(232,232,232,0.6);
+            text-align: center;
+            font-style: italic;
+            margin-bottom: 20px;
+            letter-spacing: 0.3px;
+        }
+
+        /* Badges */
+        .badges {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+        .badge {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .badge-icon {
+            width: 34px; height: 34px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s, filter 0.2s;
+            cursor: default;
+        }
+        .badge-icon svg { width: 22px; height: 22px; }
+        .badge-icon:hover {
+            transform: scale(1.2) translateY(-3px);
+            filter: drop-shadow(0 0 6px rgba(255,140,66,0.55));
+        }
+        /* verified uses the original image */
+        .badge-icon img {
+            width: 26px; height: 26px;
+            object-fit: contain;
+        }
+        .badge-tip {
+            position: absolute;
+            bottom: calc(100% + 6px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15,15,15,0.92);
+            border: 1px solid rgba(255,140,66,0.3);
+            color: rgba(232,232,232,0.85);
+            font-size: 10px;
+            font-family: 'Source Code Pro', monospace;
+            padding: 3px 8px;
+            border-radius: 3px;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s;
+            z-index: 20;
+        }
+        .badge:hover .badge-tip { opacity: 1; }
+
+        .divider {
+            border: none;
+            border-top: 1px solid rgba(255,140,66,0.15);
+            margin: 0 0 20px;
+        }
+
+        .socials { display: flex; flex-direction: column; gap: 10px; }
+
+        .social-btn {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 11px 16px;
+            border: 1px solid rgba(255,140,66,0.2);
+            border-radius: 4px;
+            background: rgba(255,140,66,0.04);
+            color: rgba(232,232,232,0.85);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: 'Source Code Pro', monospace;
+            transition: all 0.25s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .social-btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, rgba(255,140,66,0.08), transparent);
+            opacity: 0;
+            transition: opacity 0.25s;
+        }
+        .social-btn:hover {
+            border-color: rgba(255,140,66,0.5);
+            transform: translateX(4px);
+            box-shadow: 0 0 14px rgba(255,140,66,0.1);
+            color: #fff;
+        }
+        .social-btn:hover::before { opacity: 1; }
+        .social-btn:active { transform: translateX(2px) scale(0.99); }
+        .social-icon { width: 20px; height: 20px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+        .social-icon svg { width: 18px; height: 18px; }
+        .social-label { flex: 1; }
+        .social-arrow { margin-left: auto; opacity: 0.4; font-size: 12px; transition: opacity 0.2s, transform 0.2s; }
+        .social-btn:hover .social-arrow { opacity: 1; transform: translateX(3px); }
+
+        .card-footer {
+            margin-top: 24px;
+            text-align: center;
+            font-size: 10px;
+            font-family: 'Source Code Pro', monospace;
+            color: rgba(255,140,66,0.35);
+            letter-spacing: 1px;
+        }
+
+        @keyframes fadeUp { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes spin   { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+
+        @media (max-width:520px) {
+            .card { padding: 28px 20px 24px; }
+            .username { font-size: 18px; }
+            #vol-wrap { bottom: 12px; right: 12px; padding: 6px 10px; }
+            #vol-slider { width: 70px; }
+        }
+    </style>
+</head>
+<body>
+
+    <video id="bg-video" autoplay loop playsinline muted>
+        <source src="/x/video.mp4" type="video/mp4">
+    </video>
+    <div id="bg-overlay"></div>
+
+    <!-- Click to Enter Overlay -->
+    <div id="enter-overlay" onclick="enterSite()">
+        <span class="enter-text">click to enter</span>
+    </div>
+
+    <!-- Volume -->
+    <div id="vol-wrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" fill="rgba(255,140,66,0.7)"/><path d="M14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06C18.01 19.86 21 16.28 21 12c0-4.28-2.99-7.86-7-8.77z" fill="rgba(255,140,66,0.4)"/></svg>
+        <input type="range" id="vol-slider" min="0" max="1" step="0.01" value="0.5">
+    </div>
+
+    <!-- Profile card -->
+    <div class="card">
+        <div class="avatar-wrap">
+            <div class="avatar-ring"></div>
+            <img class="avatar" src="/x/picture.jpeg" alt="ph1lv">
+        </div>
+
+        <div class="name-row">
+            <span class="username">ph1lv</span>
+        </div>
+
+        <p class="bio">the dragon rests in agony.</p>
+
+        <!-- Badges -->
+        <div class="badges">
+
+            <!-- verified (original file) -->
+            <div class="badge">
+                <div class="badge-icon"><img src="/x/verified.webp" alt="verified"></div>
+                <span class="badge-tip">verified</span>
+            </div>
+
+            <!-- owner: crown -->
+            <div class="badge">
+                <div class="badge-icon">
+                    <svg viewBox="0 0 24 24" fill="none"><path d="M2 19h20v2H2v-2zm2-2l2-8 4 4 4-7 4 7 4-4 2 8H4z" fill="#FFB703"/></svg>
+                </div>
+                <span class="badge-tip">owner</span>
+            </div>
+
+            <!-- VIP: diamond -->
+            <div class="badge">
+                <div class="badge-icon">
+                    <svg viewBox="0 0 24 24" fill="none"><path d="M6 2h12l4 6-10 14L2 8l4-6z" fill="none" stroke="#a78bfa" stroke-width="1.5"/><path d="M2 8h20M6 2l3 6m6-6l-3 6" stroke="#a78bfa" stroke-width="1.2"/></svg>
+                </div>
+                <span class="badge-tip">VIP</span>
+            </div>
+
+            <!-- OPSEC: eye with slash -->
+            <div class="badge">
+                <div class="badge-icon">
+                    <svg viewBox="0 0 24 24" fill="none"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24M1 1l22 22" stroke="#60a5fa" stroke-width="1.6" stroke-linecap="round"/></svg>
+                </div>
+                <span class="badge-tip">OPSEC</span>
+            </div>
+
+            <!-- genius: lightning bolt -->
+            <div class="badge">
+                <div class="badge-icon">
+                    <svg viewBox="0 0 24 24" fill="none"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="#facc15" stroke="#facc15" stroke-width="0.5"/></svg>
+                </div>
+                <span class="badge-tip">genius</span>
+            </div>
+
+            <!-- drainer: skull -->
+            <div class="badge">
+                <div class="badge-icon">
+                    <svg viewBox="0 0 24 24" fill="none"><path d="M12 2a7 7 0 00-7 7c0 2.5 1.3 4.7 3.2 6H8v2h2v1h4v-1h2v-2h-.2C17.7 13.7 19 11.5 19 9a7 7 0 00-7-7z" fill="#f87171"/><rect x="9" y="15" width="2" height="2" rx="0.5" fill="#0f0f0f"/><rect x="13" y="15" width="2" height="2" rx="0.5" fill="#0f0f0f"/></svg>
+                </div>
+                <span class="badge-tip">premium</span>
+            </div>
+
+            <!-- boss: fist -->
+            <div class="badge">
+                <div class="badge-icon">
+                    <svg viewBox="0 0 24 24" fill="none"><path d="M9 11V6a1 1 0 012 0v4m0 0V5a1 1 0 012 0v5m0 0V6a1 1 0 012 0v5m0 0V8a1 1 0 012 0v6c0 3.31-2.69 6-6 6H9a4 4 0 01-4-4v-4a1 1 0 012 0v2" stroke="#fb923c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <span class="badge-tip">boss</span>
+            </div>
+
+            <!-- rich: money bag -->
+            <div class="badge">
+                <div class="badge-icon">
+                    <svg viewBox="0 0 24 24" fill="none"><path d="M12 2c-1.5 0-3 .8-3 2 0 .6.3 1.1.7 1.5C7.5 6.5 6 8.6 6 11c0 3.9 2.7 7 6 7s6-3.1 6-7c0-2.4-1.5-4.5-3.7-5.5.4-.4.7-.9.7-1.5 0-1.2-1.5-2-3-2z" fill="#4ade80" stroke="#4ade80" stroke-width="0.3"/><text x="12" y="13.5" font-family="monospace" font-size="6" font-weight="700" fill="#0f0f0f" text-anchor="middle">$</text></svg>
+                </div>
+                <span class="badge-tip">rich</span>
+            </div>
+
+            <!-- certified: ribbon/medal -->
+            <div class="badge">
+                <div class="badge-icon">
+                    <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="9" r="5" fill="none" stroke="#38bdf8" stroke-width="1.5"/><path d="M8.21 13.89L7 23l5-3 5 3-1.21-9.12" stroke="#38bdf8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 6v3l1.5 1.5" stroke="#38bdf8" stroke-width="1.2" stroke-linecap="round"/></svg>
+                </div>
+                <span class="badge-tip">certified</span>
+            </div>
+
+        </div>
+
+        <hr class="divider">
+
+        <div class="socials">
+            <a class="social-btn" href="https://discord.com/users/1492904216514265128" target="_blank" rel="noopener">
+                <span class="social-icon">
+                    <svg viewBox="0 0 24 24" fill="none"><path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.031.056a19.9 19.9 0 005.993 3.03.077.077 0 00.084-.028 14.09 14.09 0 001.226-1.994.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03z" fill="rgba(255,140,66,0.8)"/></svg>
+                </span>
+                <span class="social-label">Discord</span>
+                <span class="social-arrow">›</span>
+            </a>
+
+            <a class="social-btn" href="mailto:p@stole.cc">
+                <span class="social-icon">
+                    <svg viewBox="0 0 24 24" fill="none"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z" fill="rgba(255,140,66,0.8)"/></svg>
+                </span>
+                <span class="social-label">Email</span>
+                <span class="social-arrow">›</span>
+            </a>
+
+            <a class="social-btn" href="https://namemc.com/profile/ph1lv.1" target="_blank" rel="noopener">
+                <span class="social-icon">
+                    <svg viewBox="0 0 24 24" fill="none"><path d="M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2zm2 4v10h2.5V9.5L12 17h2.5V7H12v7.5L9.5 7H7z" fill="rgba(255,140,66,0.8)"/></svg>
+                </span>
+                <span class="social-label">NameMC</span>
+                <span class="social-arrow">›</span>
+            </a>
+
+            <a class="social-btn" href="https://www.tiktok.com/@psychopine" target="_blank" rel="noopener">
+                <span class="social-icon">
+                    <svg viewBox="0 0 24 24" fill="none"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.16 8.16 0 004.77 1.52V6.75a4.85 4.85 0 01-1-.06z" fill="rgba(255,140,66,0.8)"/></svg>
+                </span>
+                <span class="social-label">TikTok</span>
+                <span class="social-arrow">›</span>
+            </a>
+        </div>
+
+        <div class="card-footer">© 2026 stole.cc</div>
+    </div>
+
+    <script>
+        const video   = document.getElementById('bg-video');
+        const slider  = document.getElementById('vol-slider');
+        const overlay = document.getElementById('enter-overlay');
+
+        video.muted  = true;
+        video.volume = 0.5;
+
+        function enterSite() {
+            overlay.classList.add('fade-out');
+            setTimeout(() => overlay.remove(), 750);
+        }
+
+        slider.addEventListener('input', () => {
+            video.volume = parseFloat(slider.value);
+        });
+
+        /* ── 3D Tilt (guns.lol style) ── */
+        const card = document.querySelector('.card');
+        const STRENGTH = 12;   // max tilt angle in degrees
+        const SCALE    = 1.03; // slight zoom on hover
+
+        card.addEventListener('mousemove', (e) => {
+            const rect = card.getBoundingClientRect();
+            const cx   = rect.left + rect.width  / 2;
+            const cy   = rect.top  + rect.height / 2;
+            const dx   = (e.clientX - cx) / (rect.width  / 2);
+            const dy   = (e.clientY - cy) / (rect.height / 2);
+
+            const rotX = -dy * STRENGTH;
+            const rotY =  dx * STRENGTH;
+
+            // glare position (percentage)
+            const mx = ((e.clientX - rect.left) / rect.width  * 100).toFixed(1);
+            const my = ((e.clientY - rect.top)  / rect.height * 100).toFixed(1);
+            card.style.setProperty('--mx', mx + '%');
+            card.style.setProperty('--my', my + '%');
+
+            card.style.transform =
+                `perspective(1000px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale(${SCALE})`;
+        });
+
+        card.addEventListener('mouseleave', () => {
+            card.style.transform =
+                `perspective(1000px) rotateX(0deg) rotateY(0deg) scale(1)`;
+            card.style.transition = 'transform 0.6s cubic-bezier(0.23,1,0.32,1), box-shadow 0.3s ease, border-color 0.15s ease';
+            // reset transition to snappy after spring-back
+            setTimeout(() => {
+                card.style.transition = 'box-shadow 0.15s ease, border-color 0.15s ease';
+            }, 650);
+        });
+
+        card.addEventListener('mouseenter', () => {
+            card.style.transition = 'transform 0.1s ease, box-shadow 0.15s ease, border-color 0.15s ease';
+        });
+    </script>
+</body>
+</html>
