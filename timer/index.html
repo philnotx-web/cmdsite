@@ -33,6 +33,414 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+            transition: background-color 0.8s cubic-bezier(0.4, 0, 0.2, 1), 
+                        background-image 0.8s cubic-bezier(0.4, 0, 0.2, 1), 
+                        color 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Color phases */
+        body.phase-normal {
+            background-color: var(--primary-dark);
+            background-image:
+                radial-gradient(circle at 20% 50%, rgba(255, 140, 66, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(255, 107, 53, 0.08) 0%, transparent 50%);
+        }
+
+        body.phase-one-day {
+            background-color: #4a0000;
+            background-image:
+                radial-gradient(circle at 20% 50%, rgba(255, 0, 0, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(200, 0, 0, 0.1) 0%, transparent 50%);
+        }
+
+        body.phase-one-hour {
+            background-color: #001a4a;
+            background-image:
+                radial-gradient(circle at 20% 50%, rgba(0, 100, 255, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(0, 150, 255, 0.1) 0%, transparent 50%);
+        }
+
+        body.phase-thirty-min {
+            background-color: #004a1a;
+            background-image:
+                radial-gradient(circle at 20% 50%, rgba(0, 255, 100, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(100, 200, 50, 0.1) 0%, transparent 50%);
+        }
+
+        body.phase-ten-min {
+            background-color: #4a4a00;
+            background-image:
+                radial-gradient(circle at 20% 50%, rgba(255, 255, 0, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(200, 200, 0, 0.1) 0%, transparent 50%);
+        }
+
+        body.phase-one-day .prompt-box {
+            background-color: rgba(74, 0, 0, 0.8);
+            border-color: rgba(255, 0, 0, 0.4);
+            box-shadow: 0 0 30px rgba(255, 0, 0, 0.15), inset 0 0 20px rgba(255, 0, 0, 0.05);
+        }
+
+        body.phase-one-day .prompt-box::before {
+            background: linear-gradient(90deg, transparent, rgba(255, 0, 0, 0.3), transparent);
+        }
+
+        body.phase-one-day .prompt-header,
+        body.phase-one-day .divider {
+            border-color: rgba(255, 0, 0, 0.3);
+        }
+
+        body.phase-one-day .timer-unit {
+            border-color: rgba(255, 0, 0, 0.3);
+            background: rgba(255, 0, 0, 0.05);
+        }
+
+        body.phase-one-day .timer-unit::after {
+            background: linear-gradient(90deg, transparent, rgba(255, 0, 0, 0.4), transparent);
+        }
+
+        body.phase-one-day .timer-unit:hover {
+            border-color: rgba(255, 0, 0, 0.5);
+            box-shadow: 0 0 12px rgba(255, 0, 0, 0.15);
+        }
+
+        body.phase-one-day .timer-value {
+            background: linear-gradient(135deg, #ff4444, #ff0000, #cc0000);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        body.phase-one-day .timer-label,
+        body.phase-one-day .phase-indicator {
+            color: rgba(255, 100, 100, 0.9);
+        }
+
+        body.phase-one-day .mode-toggle {
+            background: linear-gradient(135deg, rgba(255, 0, 0, 0.8), rgba(200, 0, 0, 0.8));
+            border: 1px solid rgba(255, 0, 0, 0.5);
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.3);
+        }
+
+        /* BLUE - One Hour */
+        body.phase-one-hour .prompt-box {
+            background-color: rgba(0, 26, 74, 0.8);
+            border-color: rgba(0, 150, 255, 0.4);
+            box-shadow: 0 0 30px rgba(0, 150, 255, 0.15), inset 0 0 20px rgba(0, 150, 255, 0.05);
+        }
+
+        body.phase-one-hour .prompt-box::before {
+            background: linear-gradient(90deg, transparent, rgba(0, 150, 255, 0.3), transparent);
+        }
+
+        body.phase-one-hour .prompt-header,
+        body.phase-one-hour .divider {
+            border-color: rgba(0, 150, 255, 0.3);
+        }
+
+        body.phase-one-hour .timer-unit {
+            border-color: rgba(0, 150, 255, 0.3);
+            background: rgba(0, 150, 255, 0.05);
+        }
+
+        body.phase-one-hour .timer-unit::after {
+            background: linear-gradient(90deg, transparent, rgba(0, 150, 255, 0.4), transparent);
+        }
+
+        body.phase-one-hour .timer-unit:hover {
+            border-color: rgba(0, 150, 255, 0.5);
+            box-shadow: 0 0 12px rgba(0, 150, 255, 0.15);
+        }
+
+        body.phase-one-hour .timer-value {
+            background: linear-gradient(135deg, #4488ff, #0099ff, #0066cc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        body.phase-one-hour .timer-label,
+        body.phase-one-hour .phase-indicator {
+            color: rgba(100, 180, 255, 0.9);
+        }
+
+        body.phase-one-hour .mode-toggle {
+            background: linear-gradient(135deg, rgba(0, 150, 255, 0.8), rgba(0, 100, 200, 0.8));
+            border: 1px solid rgba(0, 150, 255, 0.5);
+            box-shadow: 0 0 15px rgba(0, 150, 255, 0.3);
+        }
+
+        /* GREEN - Thirty Minutes */
+        body.phase-thirty-min .prompt-box {
+            background-color: rgba(0, 74, 26, 0.8);
+            border-color: rgba(0, 255, 100, 0.4);
+            box-shadow: 0 0 30px rgba(0, 255, 100, 0.15), inset 0 0 20px rgba(0, 255, 100, 0.05);
+        }
+
+        body.phase-thirty-min .prompt-box::before {
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 100, 0.3), transparent);
+        }
+
+        body.phase-thirty-min .prompt-header,
+        body.phase-thirty-min .divider {
+            border-color: rgba(0, 255, 100, 0.3);
+        }
+
+        body.phase-thirty-min .timer-unit {
+            border-color: rgba(0, 255, 100, 0.3);
+            background: rgba(0, 255, 100, 0.05);
+        }
+
+        body.phase-thirty-min .timer-unit::after {
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 100, 0.4), transparent);
+        }
+
+        body.phase-thirty-min .timer-unit:hover {
+            border-color: rgba(0, 255, 100, 0.5);
+            box-shadow: 0 0 12px rgba(0, 255, 100, 0.15);
+        }
+
+        body.phase-thirty-min .timer-value {
+            background: linear-gradient(135deg, #44ff88, #00ff66, #00cc44);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        body.phase-thirty-min .timer-label,
+        body.phase-thirty-min .phase-indicator {
+            color: rgba(100, 255, 150, 0.9);
+        }
+
+        body.phase-thirty-min .mode-toggle {
+            background: linear-gradient(135deg, rgba(0, 255, 100, 0.8), rgba(0, 200, 80, 0.8));
+            border: 1px solid rgba(0, 255, 100, 0.5);
+            box-shadow: 0 0 15px rgba(0, 255, 100, 0.3);
+        }
+
+        /* YELLOW - Ten Minutes */
+        body.phase-ten-min .prompt-box {
+            background-color: rgba(74, 74, 0, 0.8);
+            border-color: rgba(255, 255, 0, 0.4);
+            box-shadow: 0 0 30px rgba(255, 255, 0, 0.15), inset 0 0 20px rgba(255, 255, 0, 0.05);
+        }
+
+        body.phase-ten-min .prompt-box::before {
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 0, 0.3), transparent);
+        }
+
+        body.phase-ten-min .prompt-header,
+        body.phase-ten-min .divider {
+            border-color: rgba(255, 255, 0, 0.3);
+        }
+
+        body.phase-ten-min .timer-unit {
+            border-color: rgba(255, 255, 0, 0.3);
+            background: rgba(255, 255, 0, 0.05);
+        }
+
+        body.phase-ten-min .timer-unit::after {
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 0, 0.4), transparent);
+        }
+
+        body.phase-ten-min .timer-unit:hover {
+            border-color: rgba(255, 255, 0, 0.5);
+            box-shadow: 0 0 12px rgba(255, 255, 0, 0.15);
+        }
+
+        body.phase-ten-min .timer-value {
+            background: linear-gradient(135deg, #ffff44, #ffff00, #cccc00);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        body.phase-ten-min .timer-label,
+        body.phase-ten-min .phase-indicator {
+            color: rgba(255, 255, 100, 0.9);
+        }
+
+        body.phase-ten-min .mode-toggle {
+            background: linear-gradient(135deg, rgba(255, 255, 0, 0.8), rgba(200, 200, 0, 0.8));
+            border: 1px solid rgba(255, 255, 0, 0.5);
+            box-shadow: 0 0 15px rgba(255, 255, 0, 0.3);
+        }
+
+        /* RAINBOW - Final 2 Minutes */
+        body.phase-rainbow .prompt-box {
+            background-color: rgba(74, 0, 74, 0.8);
+            border: 2px solid;
+            border-image: linear-gradient(135deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3) 1;
+            box-shadow: 0 0 30px rgba(255, 0, 255, 0.3), inset 0 0 20px rgba(255, 0, 255, 0.1);
+        }
+
+        body.phase-rainbow .prompt-box::before {
+            background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3);
+            animation: slideRight 1.5s ease-in-out infinite;
+        }
+
+        body.phase-rainbow .prompt-header,
+        body.phase-rainbow .divider {
+            border-image: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3) 1;
+            border-color: transparent;
+        }
+
+        body.phase-rainbow .timer-unit {
+            border: 1px solid;
+            border-image: linear-gradient(135deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3) 1;
+            background: linear-gradient(135deg, rgba(255,0,0,0.05), rgba(255,255,0,0.05), rgba(0,255,0,0.05), rgba(0,0,255,0.05));
+        }
+
+        body.phase-rainbow .timer-unit::after {
+            background: linear-gradient(90deg, transparent, #ffffff, transparent);
+        }
+
+        body.phase-rainbow .timer-value {
+            background: linear-gradient(135deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: rainbowFlash 0.5s ease-in-out infinite;
+        }
+
+        body.phase-rainbow .timer-label,
+        body.phase-rainbow .phase-indicator {
+            background: linear-gradient(135deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        body.phase-rainbow .mode-toggle {
+            background: linear-gradient(135deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 0 20px rgba(255, 0, 255, 0.5);
+            animation: rainbowPulse 0.8s ease-in-out infinite;
+        }
+
+        @keyframes rainbowFlash {
+            0%, 100% { filter: brightness(1); }
+            50% { filter: brightness(1.2); }
+        }
+
+        @keyframes rainbowPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        body.phase-blue-mode {
+            background: linear-gradient(
+                135deg,
+                #0a2463 0%,
+                #247ba0 15%,
+                #1687a7 30%,
+                #2a5fa8 45%,
+                #4a90e2 60%,
+                #357abd 75%,
+                #0a2463 100%
+            );
+            background-size: 400% 400%;
+            animation: blueGradientFlow 20s ease-in-out infinite;
+        }
+
+        @keyframes rainbowShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        @keyframes blueGradientFlow {
+            0% { background-position: 0% 50%; }
+            25% { background-position: 50% 100%; }
+            50% { background-position: 100% 50%; }
+            75% { background-position: 50% 0%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        body.light-mode {
+            background-color: #e8e8e8;
+            background-image:
+                radial-gradient(circle at 20% 50%, rgba(255, 140, 66, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(255, 107, 53, 0.08) 0%, transparent 50%);
+            color: var(--text-dark);
+        }
+
+        .mode-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, var(--accent-orange), var(--accent-coral));
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 500;
+            font-size: 12px;
+            transition: all 0.3s ease;
+            z-index: 1000;
+            animation: fadeIn 0.6s ease-out 0.3s both;
+        }
+
+        .mode-toggle:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(255, 140, 66, 0.4);
+        }
+
+        .debug-console {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(15, 15, 15, 0.95);
+            border: 1px solid rgba(255, 140, 66, 0.3);
+            border-radius: 4px;
+            padding: 12px;
+            width: 300px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 10px;
+            font-family: 'Source Code Pro', monospace;
+            color: rgba(255, 140, 66, 0.8);
+            z-index: 999;
+            display: none;
+            line-height: 1.4;
+        }
+
+        .debug-console.active {
+            display: block;
+        }
+
+        .debug-line {
+            margin: 2px 0;
+            word-break: break-all;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --primary-dark: #0f0f0f;
+            --primary-light: #f5f5f5;
+            --accent-orange: #FF8C42;
+            --accent-coral: #FF6B35;
+            --accent-pink: #F77F88;
+            --accent-gold: #FFB703;
+            --text-dark: #1a1a1a;
+            --text-light: #e8e8e8;
+        }
+
+        body {
+            background-color: var(--primary-dark);
+            background-image:
+                radial-gradient(circle at 20% 50%, rgba(255, 140, 66, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(255, 107, 53, 0.08) 0%, transparent 50%);
+            color: var(--text-light);
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 16px;
+            line-height: 1.6;
+            padding: 40px 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
             transition: background-color 0.3s ease, color 0.3s ease;
         }
 
@@ -302,6 +710,66 @@
 
         a:active { transform: scale(0.95); }
 
+        body.phase-one-day a {
+            background: linear-gradient(135deg, #ff4444, #ff0000);
+            border-color: rgba(255, 0, 0, 0.5);
+        }
+
+        body.phase-one-day a:hover {
+            background: linear-gradient(135deg, #ff0000, #cc0000);
+            border-color: rgba(255, 0, 0, 0.8);
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.4);
+        }
+
+        body.phase-one-hour a {
+            background: linear-gradient(135deg, #4488ff, #0099ff);
+            border-color: rgba(0, 150, 255, 0.5);
+        }
+
+        body.phase-one-hour a:hover {
+            background: linear-gradient(135deg, #0099ff, #0066cc);
+            border-color: rgba(0, 150, 255, 0.8);
+            box-shadow: 0 0 15px rgba(0, 150, 255, 0.4);
+        }
+
+        body.phase-thirty-min a {
+            background: linear-gradient(135deg, #44ff88, #00ff66);
+            border-color: rgba(0, 255, 100, 0.5);
+        }
+
+        body.phase-thirty-min a:hover {
+            background: linear-gradient(135deg, #00ff66, #00cc44);
+            border-color: rgba(0, 255, 100, 0.8);
+            box-shadow: 0 0 15px rgba(0, 255, 100, 0.4);
+        }
+
+        body.phase-ten-min a {
+            background: linear-gradient(135deg, #ffff44, #ffff00);
+            border-color: rgba(255, 255, 0, 0.5);
+            color: #000;
+        }
+
+        body.phase-ten-min a:hover {
+            background: linear-gradient(135deg, #ffff00, #cccc00);
+            border-color: rgba(255, 255, 0, 0.8);
+            box-shadow: 0 0 15px rgba(255, 255, 0, 0.4);
+        }
+
+        body.phase-rainbow a {
+            background: linear-gradient(135deg, #ff0000, #ff7f00, #ffff00, #00ff00);
+            border-color: rgba(255, 255, 255, 0.5);
+            animation: rainbowFlow 2s linear infinite;
+        }
+
+        body.phase-rainbow a:hover {
+            box-shadow: 0 0 20px rgba(255, 0, 255, 0.5);
+        }
+
+        @keyframes rainbowFlow {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 100% 50%; }
+        }
+
         .footer {
             margin-top: 60px;
             font-size: 12px;
@@ -328,6 +796,51 @@
 
         body.light-mode .divider { border-top-color: rgba(255, 107, 53, 0.2); }
 
+        body.phase-blue-mode .prompt-box {
+            background-color: rgba(10, 36, 99, 0.8);
+            border-color: rgba(66, 150, 226, 0.4);
+            box-shadow: 
+                0 0 30px rgba(74, 144, 226, 0.2),
+                inset 0 0 20px rgba(74, 144, 226, 0.05);
+            backdrop-filter: blur(8px);
+        }
+
+        body.phase-blue-mode .prompt-box::before {
+            background: linear-gradient(90deg, transparent, rgba(74, 144, 226, 0.3), transparent);
+        }
+
+        body.phase-blue-mode .prompt-header {
+            border-bottom-color: rgba(74, 144, 226, 0.3);
+        }
+
+        body.phase-blue-mode .divider {
+            border-top-color: rgba(74, 144, 226, 0.3);
+        }
+
+        body.phase-blue-mode .timer-unit {
+            border-color: rgba(74, 144, 226, 0.3);
+            background: rgba(74, 144, 226, 0.05);
+        }
+
+        body.phase-blue-mode .timer-unit::after {
+            background: linear-gradient(90deg, transparent, rgba(74, 144, 226, 0.4), transparent);
+        }
+
+        body.phase-blue-mode .timer-unit:hover {
+            border-color: rgba(74, 144, 226, 0.5);
+            box-shadow: 0 0 12px rgba(74, 144, 226, 0.15);
+        }
+
+        body.phase-blue-mode .mode-toggle {
+            background: linear-gradient(135deg, rgba(74, 144, 226, 0.8), rgba(66, 150, 226, 0.8));
+            border: 1px solid rgba(74, 144, 226, 0.5);
+            box-shadow: 0 0 15px rgba(74, 144, 226, 0.3);
+        }
+
+        body.phase-blue-mode .mode-toggle:hover {
+            box-shadow: 0 0 25px rgba(74, 144, 226, 0.5);
+        }
+
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes fadeInDown { from { opacity: 0; transform: translateY(-30px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
@@ -338,6 +851,92 @@
         }
         @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
 
+        .debug-console {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(15, 15, 15, 0.95);
+            border: 1px solid rgba(255, 140, 66, 0.3);
+            border-radius: 4px;
+            padding: 12px;
+            width: 300px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 10px;
+            font-family: 'Source Code Pro', monospace;
+            color: rgba(255, 140, 66, 0.8);
+            z-index: 999;
+            display: none;
+            line-height: 1.4;
+        }
+
+        .debug-console.active {
+            display: block;
+        }
+
+        .debug-line {
+            margin: 2px 0;
+            word-break: break-all;
+        }
+
+        .phase-indicator {
+            font-size: 10px;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            color: rgba(255, 140, 66, 0.8);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 15px;
+            padding: 8px;
+            border: 1px solid rgba(255, 140, 66, 0.3);
+            border-radius: 4px;
+            background: rgba(255, 140, 66, 0.05);
+            text-align: center;
+        }
+
+        .final-countdown {
+            display: none;
+            font-size: 180px;
+            font-weight: 900;
+            font-family: 'Source Code Pro', monospace;
+            color: #ff0000;
+            text-shadow: 0 0 30px rgba(255, 0, 0, 0.8);
+            animation: pulse 0.5s ease-in-out infinite;
+            line-height: 1;
+            z-index: 500;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .final-countdown.active {
+            display: block;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.1); }
+        }
+
+        .fireworks {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 1001;
+        }
+
+        .firework {
+            position: absolute;
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
         @media (max-width: 600px) {
             .title { font-size: 48px; }
             .timer-value { font-size: 28px; }
@@ -345,6 +944,7 @@
             .timer-grid, .timer-grid-bottom { gap: 10px; }
             .prompt-box { padding: 20px; }
             .mode-toggle { padding: 6px 12px; font-size: 11px; }
+            .final-countdown { font-size: 80px; }
         }
     </style>
 </head>
@@ -356,10 +956,15 @@
         <span id="modeLabel">LIGHT MODE</span>
     </button>
 
+    <div class="debug-console" id="debugConsole"></div>
+
     <div class="header-section">
         <div class="title">[stole.cc]</div>
         <div class="subtitle">> COUNTDOWN TO 03.09.2026</div>
     </div>
+
+    <div id="fireworks" class="fireworks"></div>
+    <div class="final-countdown" id="finalCountdown">10</div>
 
     <div class="prompt-box">
         <div class="prompt-header">
@@ -370,6 +975,7 @@
 
         <div class="timer-section">
             <div class="timer-label">> COUNTDOWN RUNNING — TARGET: 03.09.2026 00:00:00.000</div>
+            <div class="phase-indicator" id="phaseIndicator">🟠 NORMAL</div>
 
             <div class="timer-grid">
                 <div class="timer-unit">
@@ -422,14 +1028,62 @@
     </div>
 
     <script>
-        // Target: 3 September 2026, midnight (local time)
         const TARGET = new Date('2026-09-03T00:00:00').getTime();
+        let hasReachedTarget = false;
 
         const elDays = document.getElementById('days');
         const elHours = document.getElementById('hours');
         const elMinutes = document.getElementById('minutes');
         const elSeconds = document.getElementById('seconds');
         const elMs = document.getElementById('milliseconds');
+        const phaseIndicator = document.getElementById('phaseIndicator');
+        const finalCountdown = document.getElementById('finalCountdown');
+        const debugConsole = document.getElementById('debugConsole');
+        const fireworksContainer = document.getElementById('fireworks');
+
+        function debugLog(msg) {
+            console.log(msg);
+            const line = document.createElement('div');
+            line.className = 'debug-line';
+            line.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+            debugConsole.appendChild(line);
+            if (debugConsole.children.length > 50) debugConsole.removeChild(debugConsole.firstChild);
+            debugConsole.scrollTop = debugConsole.scrollHeight;
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'd' || e.key === 'D') {
+                debugConsole.classList.toggle('active');
+                debugLog('Debug console toggled');
+            }
+            // Phase testing
+            if (e.key === '1') testPhase('normal');
+            if (e.key === '2') testPhase('one-day');
+            if (e.key === '3') testPhase('one-hour');
+            if (e.key === '4') testPhase('thirty-min');
+            if (e.key === '5') testPhase('ten-min');
+            if (e.key === '6') testPhase('rainbow');
+            if (e.key === '9') testPhase('final');
+        });
+
+        function testPhase(phase) {
+            debugLog('🧪 Testing phase: ' + phase);
+            
+            // Remove all phase classes
+            document.body.className = document.body.className.replace(/phase-\w+/g, '');
+            
+            // Add new phase class
+            document.body.classList.add('phase-' + phase);
+            updatePhaseIndicator(phase);
+            
+            if (phase === 'final') {
+                finalCountdown.classList.add('active');
+                finalCountdown.textContent = '5';
+            } else {
+                finalCountdown.classList.remove('active');
+            }
+        }
 
         function pad(n, len) {
             return String(Math.max(0, Math.floor(n))).padStart(len, '0');
@@ -440,9 +1094,77 @@
             el.textContent = newVal;
             if (prev !== newVal) {
                 el.classList.remove('tick');
-                void el.offsetWidth; // reflow
+                void el.offsetWidth;
                 el.classList.add('tick');
                 setTimeout(() => el.classList.remove('tick'), 120);
+            }
+        }
+
+        function updatePhaseIndicator(phase) {
+            const indicators = {
+                'normal': '🟠 NORMAL - Default',
+                'one-day': '🔴 RED - 1 Day Remaining',
+                'one-hour': '🔵 BLUE - 1 Hour Remaining',
+                'thirty-min': '🟢 GREEN - 30 Minutes Remaining',
+                'ten-min': '🟡 YELLOW - 10 Minutes Remaining',
+                'rainbow': '🌈 RAINBOW - Final 2 Minutes'
+            };
+            phaseIndicator.textContent = indicators[phase] || phase;
+        }
+
+        function determinePhase(diff) {
+            if (diff < 0) return 'final';
+            const diffMs = diff;
+            const diffSecs = Math.floor(diffMs / 1000);
+            const diffMins = Math.floor(diffSecs / 60);
+            const diffHours = Math.floor(diffMins / 60);
+            const diffDays = Math.floor(diffHours / 24);
+
+            if (diffMins < 2) return 'rainbow';
+            if (diffMins < 10) return 'ten-min';
+            if (diffMins < 30) return 'thirty-min';
+            if (diffHours < 1) return 'one-hour';
+            if (diffDays < 1) return 'one-day';
+            return 'normal';
+        }
+
+        function createFirework() {
+            const colors = ['#ff0000', '#ff7f00', '#ffff00', '#00ff00', '#0000ff', '#4b0082', '#9400d3'];
+            for (let i = 0; i < 100; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'firework';
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                particle.style.backgroundColor = color;
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.top = Math.random() * 100 + '%';
+                
+                const duration = 2000 + Math.random() * 1000;
+                const angle = Math.random() * Math.PI * 2;
+                const velocity = 5 + Math.random() * 15;
+                
+                let x = Math.cos(angle) * velocity;
+                let y = Math.sin(angle) * velocity;
+                let life = 1;
+
+                const startTime = Date.now();
+                const animate = () => {
+                    const elapsed = Date.now() - startTime;
+                    const progress = elapsed / duration;
+
+                    if (progress >= 1) {
+                        particle.remove();
+                        return;
+                    }
+
+                    life = 1 - progress;
+                    particle.style.opacity = life;
+                    particle.style.transform = 'translate(' + (x * progress * 100) + 'px, ' + (y * progress * 100) + 'px)';
+
+                    requestAnimationFrame(animate);
+                };
+                
+                fireworksContainer.appendChild(particle);
+                animate();
             }
         }
 
@@ -450,42 +1172,71 @@
             const now = Date.now();
             let diff = TARGET - now;
 
+            const phase = determinePhase(diff);
+            
+            // Only remove phase classes, keep other classes
+            document.body.className = document.body.className.replace(/phase-\w+/g, '');
+            document.body.classList.add('phase-' + phase);
+            
+            if (phase !== 'final') {
+                updatePhaseIndicator(phase);
+                finalCountdown.classList.remove('active');
+            }
+
             if (diff <= 0) {
+                if (!hasReachedTarget) {
+                    hasReachedTarget = true;
+                    debugLog('🎉 TARGET REACHED! Starting fireworks!');
+                    for (let i = 0; i < 10; i++) {
+                        setTimeout(createFirework, i * 100);
+                    }
+                }
+
                 tick(elDays, '000');
                 tick(elHours, '00');
                 tick(elMinutes, '00');
                 tick(elSeconds, '00');
                 tick(elMs, '000');
+                
+                finalCountdown.classList.remove('active');
+                updatePhaseIndicator('final');
                 return;
             }
 
-            const ms      = diff % 1000;
-            diff           = Math.floor(diff / 1000);
-            const secs     = diff % 60;
-            diff           = Math.floor(diff / 60);
-            const mins     = diff % 60;
-            diff           = Math.floor(diff / 60);
-            const hrs      = diff % 24;
-            const days     = Math.floor(diff / 24);
+            if (diff < 10000) {
+                finalCountdown.classList.add('active');
+                const secRemaining = Math.max(0, Math.floor(diff / 1000));
+                finalCountdown.textContent = secRemaining;
+            }
 
-            tick(elDays,    pad(days, 3));
-            tick(elHours,   pad(hrs, 2));
+            const ms = diff % 1000;
+            diff = Math.floor(diff / 1000);
+            const secs = diff % 60;
+            diff = Math.floor(diff / 60);
+            const mins = diff % 60;
+            diff = Math.floor(diff / 60);
+            const hrs = diff % 24;
+            const days = Math.floor(diff / 24);
+
+            tick(elDays, pad(days, 3));
+            tick(elHours, pad(hrs, 2));
             tick(elMinutes, pad(mins, 2));
             tick(elSeconds, pad(secs, 2));
-            tick(elMs,      pad(ms, 3));
+            tick(elMs, pad(ms, 3));
         }
 
         update();
-        setInterval(update, 13); // ~76fps, smooth ms
+        setInterval(update, 13);
 
-        // ── Dark/light mode ──
         const modeLabel = document.getElementById('modeLabel');
-        const modeIcon  = document.getElementById('modeIcon');
+        const modeIcon = document.getElementById('modeIcon');
 
         window.addEventListener('load', () => {
             const isDarkMode = localStorage.getItem('darkMode') !== 'false';
             if (!isDarkMode) document.body.classList.add('light-mode');
             updateModeButton();
+            debugLog('⏱️ Timer initialized - Press D to toggle debug console');
+            debugLog('Press 1-6 to test phases, 9 for final countdown');
         });
 
         function toggleDarkMode() {
@@ -493,16 +1244,17 @@
             const isNowLight = document.body.classList.contains('light-mode');
             localStorage.setItem('darkMode', isNowLight ? 'false' : 'true');
             updateModeButton();
+            debugLog('Toggled to: ' + (isNowLight ? 'LIGHT' : 'DARK') + ' mode');
         }
 
         function updateModeButton() {
             const isLight = document.body.classList.contains('light-mode');
             if (isLight) {
                 modeLabel.textContent = 'DARK MODE';
-                modeIcon.innerHTML = `<path d="M6.76 4.84l-1.8-1.79L4.22 4.6l1.79 1.8 0.75-1.56zM1 13h3v-2H1v2zm10 8h2v-3h-2v3zM17.24 19.16l0.75 1.56 1.79-1.79-1.56-0.75-1-1.52zM20 11v2h3v-2h-3zM12 5a7 7 0 100 14 7 7 0 000-14z" fill="white" />`;
+                modeIcon.innerHTML = '<path d="M6.76 4.84l-1.8-1.79L4.22 4.6l1.79 1.8 0.75-1.56zM1 13h3v-2H1v2zm10 8h2v-3h-2v3zM17.24 19.16l0.75 1.56 1.79-1.79-1.56-0.75-1-1.52zM20 11v2h3v-2h-3zM12 5a7 7 0 100 14 7 7 0 000-14z" fill="white" />';
             } else {
                 modeLabel.textContent = 'LIGHT MODE';
-                modeIcon.innerHTML = `<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" fill="white" />`;
+                modeIcon.innerHTML = '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" fill="white" />';
             }
         }
     </script>
