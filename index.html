@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>stole.cc</title>
+    <meta name="description" content="Contact stole: Telegram @stole9, email p@stole.cc, Discord.">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#dce1e5" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0e1013" media="(prefers-color-scheme: dark)">
+
+    <!-- link preview card (Telegram, Discord, iMessage, X…) -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="stole.cc">
+    <meta property="og:url" content="https://stole.cc/">
+    <meta property="og:title" content="stole.cc">
+    <meta property="og:description" content="Telegram @stole9 · p@stole.cc · Discord">
+    <meta property="og:image" content="https://stole.cc/og.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="A CD and its insert reading stole.cc, with Telegram, email and Discord contacts.">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="https://stole.cc/og.png">
+
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%23cfd4d8'/%3E%3Cpath d='M16 1a15 15 0 0 1 13 7.5L16 16z' fill='%23ff5f1a'/%3E%3Ccircle cx='16' cy='16' r='5.5' fill='%23101317'/%3E%3Ccircle cx='16' cy='16' r='2' fill='%23dce1e5'/%3E%3C/svg%3E">
+
+    <!-- apply the saved edition before first paint so nothing flashes -->
+    <script>
+        try {
+            var ed = localStorage.getItem('stole:edition');
+            if (/^(silver|black|ice|bootleg)$/.test(ed)) document.documentElement.dataset.edition = ed;
+        } catch (e) {}
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Doto:wght@600..900&family=Jacquard+24&family=Martian+Mono:wdth,wght@75..112.5,300..600&family=Permanent+Marker&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="playlist.js" defer></script>
+    <script src="app.js" defer></script>
+</head>
+<body>
+    <!-- photocopy roughness for the bootleg edition -->
+    <svg class="defs" aria-hidden="true" focusable="false">
+        <filter id="toner" x="-5%" y="-5%" width="110%" height="110%">
+            <feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" seed="7"/>
+            <feDisplacementMap in="SourceGraphic" scale="4"/>
+        </filter>
+    </svg>
+
+    <div class="sheet">
+        <aside class="spine spine-l" aria-hidden="true">
+            <span class="vu" id="vuL"><b></b></span>
+            <span class="spine-logo">stole</span>
+            <span class="spine-title js-now-title">Play Em Like Atari</span>
+            <span class="js-cat">STL-009</span>
+        </aside>
+
+        <main class="insert" id="insert">
+            <i class="crop tl" aria-hidden="true"></i>
+            <i class="crop tr" aria-hidden="true"></i>
+            <i class="crop bl" aria-hidden="true"></i>
+            <i class="crop br" aria-hidden="true"></i>
+
+            <header class="band rise" style="--i:0">
+                <span class="band-cat">
+                    <span class="js-cat">STL-009</span>
+                    <span class="clock dim"><time id="clock">--:--</time> <span id="tz"></span></span>
+                </span>
+
+                <svg class="reg" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="5.5"/><path d="M10 0v20M0 10h20"/></svg>
+
+                <fieldset class="shelf" id="shelf">
+                    <legend class="sr-only">Edition</legend>
+                    <span class="shelf-cap" aria-hidden="true"><span class="js-ed">Silver</span> edition</span>
+                    <span class="shelf-row">
+                        <label class="case" title="Silver edition" style="--c-paper:#dce1e5;--c-ink:#101317;--c-spot:#ff5f1a">
+                            <input type="radio" name="edition" value="silver" id="ed-silver">
+                            <span class="case-spine" aria-hidden="true"><b></b><em>SL</em></span>
+                            <span class="sr-only">Silver</span>
+                        </label>
+                        <label class="case" title="Black edition" style="--c-paper:#15181c;--c-ink:#e2e6e9;--c-spot:#ff7433">
+                            <input type="radio" name="edition" value="black" id="ed-black">
+                            <span class="case-spine" aria-hidden="true"><b></b><em>BK</em></span>
+                            <span class="sr-only">Black</span>
+                        </label>
+                        <label class="case" title="Ice edition" style="--c-paper:#cddde8;--c-ink:#0b1b2d;--c-spot:#f0287a">
+                            <input type="radio" name="edition" value="ice" id="ed-ice">
+                            <span class="case-spine" aria-hidden="true"><b></b><em>IC</em></span>
+                            <span class="sr-only">Ice</span>
+                        </label>
+                        <label class="case case-cdr" title="Bootleg edition" style="--c-paper:#e8e8e5;--c-ink:#0b0b0b;--c-spot:#d42a1f">
+                            <input type="radio" name="edition" value="bootleg" id="ed-bootleg">
+                            <span class="case-spine" aria-hidden="true"><b></b><em>CDR</em></span>
+                            <span class="sr-only">Bootleg</span>
+                        </label>
+                    </span>
+                </fieldset>
+            </header>
+
+            <!-- the insert: contacts on the front, about + tracklist on the back -->
+            <div class="flip">
+                <div class="flip-inner">
+                    <div class="face face-front" id="faceFront">
+                        <h1 class="logo rise" style="--i:1"><span class="logo-word" data-text="stole">stole</span><span class="tld">.cc</span></h1>
+
+                        <section class="tracks" aria-labelledby="tracks-h">
+                            <div class="tracks-head rise" style="--i:2">
+                                <h2 id="tracks-h" class="sr-only">Contact</h2>
+                                <span class="hint">Press 1–3 to copy</span>
+                            </div>
+
+                            <ol class="tracklist">
+                                <li class="track rise" style="--i:3" data-key="1">
+                                    <span class="no">01</span>
+                                    <span class="px" data-icon="telegram" aria-hidden="true"></span>
+                                    <div class="track-body">
+                                        <span class="svc">Telegram</span>
+                                        <div class="line">
+                                            <a class="val" href="https://t.me/stole9" target="_blank" rel="noopener">@stole9</a>
+                                            <span class="leader" aria-hidden="true"></span>
+                                            <span class="acts">
+                                                <button class="btn" type="button" data-copy="@stole9" aria-label="Copy Telegram handle">Copy</button>
+                                                <a class="btn" href="https://t.me/stole9" target="_blank" rel="noopener">Open<span aria-hidden="true">&nbsp;↗</span></a>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </li>
+
+                                <li class="track rise" style="--i:4" data-key="2">
+                                    <span class="no">02</span>
+                                    <span class="px" data-icon="email" aria-hidden="true"></span>
+                                    <div class="track-body">
+                                        <span class="svc">Email</span>
+                                        <div class="line">
+                                            <a class="val" href="mailto:p@stole.cc">p@stole.cc</a>
+                                            <span class="leader" aria-hidden="true"></span>
+                                            <span class="acts">
+                                                <button class="btn" type="button" data-copy="p@stole.cc" aria-label="Copy email address">Copy</button>
+                                                <a class="btn" href="mailto:p@stole.cc">Write<span aria-hidden="true">&nbsp;↗</span></a>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </li>
+
+                                <li class="track track-discord rise" style="--i:5" data-key="3">
+                                    <span class="no">03</span>
+                                    <span class="px" data-icon="discord" aria-hidden="true"></span>
+                                    <div class="track-body">
+                                        <span class="svc">Discord</span>
+                                        <div class="line">
+                                            <a class="val" href="https://discord.com/users/1492904216514265128" target="_blank" rel="noopener">View profile</a>
+                                            <span class="leader" aria-hidden="true"></span>
+                                            <span class="acts">
+                                                <button class="btn" type="button" data-copy="https://discord.com/users/1492904216514265128" data-copy-name="Discord link" aria-label="Copy Discord profile link">Copy</button>
+                                                <a class="btn" href="https://discord.com/users/1492904216514265128" target="_blank" rel="noopener">Open<span aria-hidden="true">&nbsp;↗</span></a>
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <!-- live status from Lanyard, wired to the entry above; hidden on the live site until there's data -->
+                                    <section class="dbox" id="dbox" aria-labelledby="dbox-h" hidden>
+                                        <header class="dbox-head">
+                                            <h2 id="dbox-h">Live<span class="sr-only"> on Discord</span></h2>
+                                            <span class="dbox-status" id="dStatus" data-status="none">Connecting</span>
+                                        </header>
+                                        <div class="dbox-body" id="dBody">
+                                            <canvas class="dbox-avatar" id="dAvatar" width="28" height="28" aria-hidden="true"></canvas>
+                                            <div class="dbox-who">
+                                                <span class="dbox-name" id="dName"></span>
+                                                <span class="dbox-sub" id="dSub"></span>
+                                            </div>
+                                        </div>
+                                        <div class="dbox-acts" id="dActs"></div>
+                                        <p class="dbox-note" id="dNote" hidden></p>
+                                    </section>
+                                </li>
+                            </ol>
+                        </section>
+
+                        <!-- plays scrobbled from Apple Music to Last.fm; hidden on the live site until there's data -->
+                        <section class="recent rise" style="--i:6" id="recent" aria-labelledby="recent-h" hidden>
+                            <div class="recent-head">
+                                <h2 id="recent-h">Recently played</h2>
+                                <span class="recent-src" id="recentSrc">via Last.fm</span>
+                            </div>
+                            <ol class="recent-list" id="recentList"></ol>
+                            <p class="recent-note" id="recentNote" hidden></p>
+                        </section>
+                    </div>
+
+                    <section class="face face-back" id="faceBack" aria-labelledby="back-h" aria-hidden="true" inert>
+                        <div class="back-head">
+                            <h2 id="back-h">Inside <span class="dim">/ <span class="js-cat">STL-009</span></span></h2>
+                            <button class="btn" type="button" id="closeBtn">Close case</button>
+                        </div>
+
+                        <div class="about">
+                            <h3 class="label">About</h3>
+                            <p>Hello visitor, my name’s Philipp and I’m located in Germany. If you would like to look at my stuff or contact me, you’re in the right place :)</p>
+                        </div>
+
+                        <div class="np">
+                            <img class="np-art" id="npArt" alt="" width="76" height="76">
+                            <div class="np-text">
+                                <span class="label">Now playing</span>
+                                <span class="np-title" id="npTitle"></span>
+                                <span class="np-artist" id="npArtist"></span>
+                                <span class="np-next" id="npNext"></span>
+                            </div>
+                        </div>
+
+                        <div class="pl">
+                            <div class="pl-head">
+                                <h3 class="pl-name" id="plName">GTBSG</h3>
+                                <span class="pl-meta" id="plMeta"></span>
+                            </div>
+                            <p class="pl-note">my compact playlist, click at some songs to give them a listen!</p>
+                            <ol class="pl-list" id="plList"></ol>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <section class="deck" id="deck" aria-label="Music player">
+                <div class="disc-slot">
+                    <!-- the jewel-case tray, seen once the disc is out -->
+                    <div class="tray" aria-hidden="true"><span class="tray-hub"></span></div>
+
+                    <div class="disc-wrap">
+                        <div class="disc-body">
+                            <div class="disc" id="disc" title="Drag to scratch · tap to play or pause">
+                                <div class="d-clear"></div>
+                                <div class="d-metal"></div>
+                                <div class="d-sheen"></div>
+                                <div class="d-rot" id="discRot">
+                                    <svg class="d-print" viewBox="0 0 200 200" aria-hidden="true">
+                                        <defs>
+                                            <path id="ringText" d="M100 11a89 89 0 1 1-.01 0"/>
+                                            <path id="ringBand" d="M100 10.5a89.5 89.5 0 1 1-.01 0"/>
+                                            <path id="ringMatrix" d="M100 66.5a33.5 33.5 0 1 1-.01 0"/>
+                                            <clipPath id="clipPicture"><path clip-rule="evenodd" d="M100 14a86 86 0 1 1-.01 0zM100 62a38 38 0 1 1-.01 0z"/></clipPath>
+                                            <clipPath id="clipLabel"><path clip-rule="evenodd" d="M100 35.5a64.5 64.5 0 1 1-.01 0zM100 62a38 38 0 1 1-.01 0z"/></clipPath>
+                                        </defs>
+
+                                        <!-- each track gets the next design: silver print, picture disc, centre label, flood -->
+                                        <g class="dz dz-silver">
+                                            <circle class="dp-line" cx="100" cy="100" r="81"/>
+                                            <path class="dp-arc" d="M160.62 65A70 70 0 0 1 165.78 123.94"/>
+                                            <text class="dp-title js-title" x="100" y="56" text-anchor="middle" data-face="display" data-size="26" data-max="100">Play Em Like Atari</text>
+                                            <text class="dp-small js-artist" x="100" y="141" text-anchor="middle" data-face="mono" data-weight="600" data-size="5.2" data-max="92" data-ls=".5">VANISH BOYS</text>
+                                            <text class="dp-tiny js-meta" x="100" y="151" text-anchor="middle" data-face="mono" data-weight="500" data-size="3.4" data-max="80" data-ls=".5">STL-009 · TRACK 045/135</text>
+                                            <text class="dp-ring"><textPath class="js-ring" href="#ringText" textLength="548" lengthAdjust="spacing">PLAY EM LIKE ATARI · VANISH BOYS · STL-009 · ℗ 2026 STOLE.CC ·</textPath></text>
+                                            <text class="dp-matrix"><textPath href="#ringMatrix">STL-009-01  M1 S1  ·  STOLE.CC</textPath></text>
+                                        </g>
+
+                                        <g class="dz dz-picture">
+                                            <image class="js-cover" x="0" y="0" width="200" height="200" preserveAspectRatio="xMidYMid slice" clip-path="url(#clipPicture)"/>
+                                            <path class="dp-band" fill-rule="evenodd" d="M100 3a97 97 0 1 1-.01 0zM100 14a86 86 0 1 1-.01 0z"/>
+                                            <text class="dp-band-text"><textPath class="js-ring" href="#ringBand" textLength="556" lengthAdjust="spacing"></textPath></text>
+                                            <rect class="dp-tag" x="54" y="140" width="92" height="20" rx="1.5"/>
+                                            <text class="dp-tag-title js-title" x="100" y="149" text-anchor="middle" data-face="mono" data-weight="600" data-size="5.6" data-max="84"></text>
+                                            <text class="dp-tag-artist js-artist" x="100" y="156" text-anchor="middle" data-face="mono" data-weight="500" data-size="3.8" data-max="84" data-ls=".4"></text>
+                                        </g>
+
+                                        <g class="dz dz-center">
+                                            <image class="js-cover" x="35" y="35" width="130" height="130" preserveAspectRatio="xMidYMid slice" clip-path="url(#clipLabel)"/>
+                                            <circle class="dp-line" cx="100" cy="100" r="64.6"/>
+                                            <text class="dp-title js-title" x="100" y="27" text-anchor="middle" data-face="display" data-size="15" data-max="84"></text>
+                                            <text class="dp-small js-artist" x="100" y="181" text-anchor="middle" data-face="mono" data-weight="600" data-size="5" data-max="78" data-ls=".5"></text>
+                                            <text class="dp-matrix"><textPath href="#ringMatrix">STL-009-01  M1 S2  ·  STOLE.CC</textPath></text>
+                                        </g>
+
+                                        <g class="dz dz-flood">
+                                            <path class="dp-flood" fill-rule="evenodd" d="M100 6a94 94 0 1 1-.01 0zM100 61.7a38.3 38.3 0 1 1-.01 0z"/>
+                                            <text class="dp-flood-title js-title" x="100" y="56" text-anchor="middle" data-face="display" data-size="30" data-max="124"></text>
+                                            <text class="dp-flood-small js-artist" x="100" y="141" text-anchor="middle" data-face="mono" data-weight="600" data-size="5.6" data-max="110" data-ls=".5"></text>
+                                            <text class="dp-flood-tiny js-meta" x="100" y="150" text-anchor="middle" data-face="mono" data-weight="500" data-size="3.6" data-max="90" data-ls=".5"></text>
+                                            <rect class="dp-flood-bar" x="86" y="158" width="28" height="2.4"/>
+                                        </g>
+
+                                        <!-- bootleg: marker on a burned CD-R; the dye changes from disc to disc -->
+                                        <g class="dp-marker">
+                                            <text class="mk-big js-title" x="100" y="60" text-anchor="middle" transform="rotate(-7 100 60)" data-face="marker" data-size="22" data-max="118">Play Em Like Atari</text>
+                                            <path class="mk-line" d="M60 70c22 5 52 4 80-6"/>
+                                            <text class="mk-mid js-artist-lower" x="100" y="141" text-anchor="middle" transform="rotate(5 100 141)" data-face="marker" data-size="10" data-max="104">vanish boys</text>
+                                            <text class="mk-small js-meta-marker" x="122" y="155" text-anchor="middle" transform="rotate(5 122 155)" data-face="marker" data-size="7" data-max="60">#045</text>
+                                            <text class="mk-small" x="160" y="100" text-anchor="middle" transform="rotate(88 160 100)">25.10.26</text>
+                                            <text class="dp-matrix"><textPath href="#ringMatrix">CD-R 80 MIN · 700 MB · 1x–52x</textPath></text>
+                                        </g>
+                                    </svg>
+                                </div>
+                                <div class="d-pulse"></div>
+                                <div class="d-gloss"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="player rise" style="--i:4">
+                    <button class="lcd" id="lcd" type="button" aria-label="Switch the display between elapsed and remaining time">
+                        <span class="lcd-ind" aria-hidden="true">
+                            <span class="ind" id="indShuffle">Shuffle</span>
+                            <span class="ind" id="indPreview">Preview</span>
+                            <span class="ind" id="indOpen">Open</span>
+                        </span>
+                        <span class="lcd-top" aria-hidden="true">
+                            <span class="lcd-art" id="lcdArt"></span>
+                            <span class="lcd-state">
+                                <svg class="ico" id="icoPlay" viewBox="0 0 10 10"><path d="M2 1.2v7.6L8.6 5z"/></svg>
+                                <svg class="ico" id="icoPause" viewBox="0 0 10 10"><path d="M2 1.5h2.2v7H2zM5.8 1.5H8v7H5.8z"/></svg>
+                            </span>
+                            <span class="lcd-field">
+                                <span class="lcd-cap">Track</span>
+                                <span class="seg" id="segTrack"></span>
+                            </span>
+                            <span class="lcd-field">
+                                <span class="lcd-cap" id="timeCap">Total</span>
+                                <span class="seg" id="segTime">
+                                    <span class="seg" id="tA"></span>
+                                    <svg class="colon" id="colon" viewBox="0 0 4 22"><rect x="1" y="6" width="2" height="2.2"/><rect x="1" y="13.8" width="2" height="2.2"/></svg>
+                                    <span class="seg" id="tB"></span>
+                                </span>
+                            </span>
+                            <span class="lcd-meter">
+                                <span class="m-row" id="mL"><b>L</b></span>
+                                <span class="m-row" id="mR"><b>R</b></span>
+                            </span>
+                        </span>
+                        <span class="lcd-spec" aria-hidden="true">
+                            <span class="spec" id="spec"></span>
+                            <span class="spec-hz">
+                                <span style="left:0">Hz</span>
+                                <span style="left:6.8%">60</span>
+                                <span style="left:30.6%">250</span>
+                                <span style="left:53.7%">1k</span>
+                                <span style="left:76.9%">4k</span>
+                                <span class="end">16k</span>
+                            </span>
+                        </span>
+                        <span class="lcd-text" id="lcdText" aria-hidden="true">PLAY EM LIKE ATARI · VANISH BOYS</span>
+                    </button>
+
+                    <div class="controls">
+                        <button class="play" id="playBtn" type="button" aria-label="Play">
+                            <span class="play-halo" aria-hidden="true"></span>
+                            <span class="play-ring" aria-hidden="true"></span>
+                            <span class="play-cap" aria-hidden="true"><span class="play-ico"><i></i><i></i></span></span>
+                        </button>
+                        <div class="seek" id="seekBox">
+                            <div class="seek-ticks" id="ticks" aria-hidden="true"></div>
+                            <input type="range" id="seek" min="0" max="1000" step="1" value="0" aria-label="Seek" disabled>
+                        </div>
+                    </div>
+
+                    <div class="keys-row">
+                        <button class="btn btn-key" id="ejectBtn" type="button" aria-pressed="false">
+                            <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.5 11 7H1zM1 8.6h10V10.5H1z"/></svg>
+                            <span>Eject</span>
+                        </button>
+                        <button class="btn btn-key" id="prevBtn" type="button" aria-label="Previous track">
+                            <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M1.5 1.5h1.6v9H1.5zM10.5 1.5v9L3.6 6z"/></svg>
+                        </button>
+                        <button class="btn btn-key" id="nextBtn" type="button" aria-label="Next track">
+                            <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M8.9 1.5h1.6v9H8.9zM1.5 1.5v9L8.4 6z"/></svg>
+                        </button>
+                        <label class="vol" for="vol"><span class="vol-cap">Vol</span><input type="range" id="vol" min="0" max="100" step="1" value="70"></label>
+                    </div>
+                </div>
+            </section>
+
+            <footer class="print rise" style="--i:6">
+                <div class="legal">
+                    <p>℗ &amp; © 2026 stole.cc. All rights reserved. Unauthorised copying, hiring, lending, public performance and broadcasting of this record prohibited. Copying the details above is encouraged.</p>
+                    <p class="keys"><kbd>Space</kbd> plays or pauses. <kbd>N</kbd> skips. <kbd>E</kbd> opens the case. <kbd>T</kbd> switches edition. Drag the disc to scratch, click the display to switch between elapsed and remaining time.</p>
+                </div>
+                <div class="codes">
+                    <figure class="qr">
+                        <svg viewBox="0 0 29 29" role="img" aria-label="QR code for t.me/stole9"><path d="M2 2h7v1h-7zM10 2h1v1h-1zM13 2h6v1h-6zM20 2h7v1h-7zM2 3h1v1h-1zM8 3h1v1h-1zM11 3h3v1h-3zM15 3h1v1h-1zM20 3h1v1h-1zM26 3h1v1h-1zM2 4h1v1h-1zM4 4h3v1h-3zM8 4h1v1h-1zM11 4h3v1h-3zM16 4h2v1h-2zM20 4h1v1h-1zM22 4h3v1h-3zM26 4h1v1h-1zM2 5h1v1h-1zM4 5h3v1h-3zM8 5h1v1h-1zM10 5h2v1h-2zM13 5h1v1h-1zM15 5h1v1h-1zM18 5h1v1h-1zM20 5h1v1h-1zM22 5h3v1h-3zM26 5h1v1h-1zM2 6h1v1h-1zM4 6h3v1h-3zM8 6h1v1h-1zM10 6h1v1h-1zM13 6h1v1h-1zM17 6h2v1h-2zM20 6h1v1h-1zM22 6h3v1h-3zM26 6h1v1h-1zM2 7h1v1h-1zM8 7h1v1h-1zM10 7h1v1h-1zM13 7h4v1h-4zM18 7h1v1h-1zM20 7h1v1h-1zM26 7h1v1h-1zM2 8h7v1h-7zM10 8h1v1h-1zM12 8h1v1h-1zM14 8h1v1h-1zM16 8h1v1h-1zM18 8h1v1h-1zM20 8h7v1h-7zM10 9h2v1h-2zM13 9h1v1h-1zM16 9h1v1h-1zM2 10h1v1h-1zM6 10h1v1h-1zM8 10h5v1h-5zM14 10h4v1h-4zM19 10h5v1h-5zM26 10h1v1h-1zM2 11h5v1h-5zM9 11h1v1h-1zM11 11h1v1h-1zM13 11h2v1h-2zM16 11h3v1h-3zM21 11h3v1h-3zM25 11h1v1h-1zM2 12h1v1h-1zM4 12h1v1h-1zM8 12h1v1h-1zM10 12h3v1h-3zM14 12h5v1h-5zM20 12h1v1h-1zM23 12h2v1h-2zM3 13h1v1h-1zM7 13h1v1h-1zM9 13h1v1h-1zM14 13h2v1h-2zM17 13h1v1h-1zM19 13h3v1h-3zM24 13h2v1h-2zM3 14h2v1h-2zM6 14h1v1h-1zM8 14h4v1h-4zM13 14h3v1h-3zM18 14h3v1h-3zM23 14h4v1h-4zM2 15h3v1h-3zM10 15h2v1h-2zM15 15h4v1h-4zM22 15h1v1h-1zM25 15h1v1h-1zM6 16h1v1h-1zM8 16h1v1h-1zM10 16h1v1h-1zM12 16h1v1h-1zM17 16h1v1h-1zM20 16h5v1h-5zM4 17h2v1h-2zM7 17h1v1h-1zM9 17h2v1h-2zM12 17h1v1h-1zM14 17h1v1h-1zM16 17h1v1h-1zM18 17h1v1h-1zM21 17h2v1h-2zM24 17h2v1h-2zM2 18h2v1h-2zM5 18h2v1h-2zM8 18h1v1h-1zM10 18h4v1h-4zM15 18h2v1h-2zM18 18h7v1h-7zM10 19h1v1h-1zM12 19h1v1h-1zM14 19h1v1h-1zM17 19h2v1h-2zM22 19h1v1h-1zM2 20h7v1h-7zM10 20h7v1h-7zM18 20h1v1h-1zM20 20h1v1h-1zM22 20h1v1h-1zM2 21h1v1h-1zM8 21h1v1h-1zM11 21h1v1h-1zM13 21h1v1h-1zM15 21h1v1h-1zM18 21h1v1h-1zM22 21h3v1h-3zM26 21h1v1h-1zM2 22h1v1h-1zM4 22h3v1h-3zM8 22h1v1h-1zM10 22h1v1h-1zM12 22h1v1h-1zM14 22h2v1h-2zM18 22h7v1h-7zM26 22h1v1h-1zM2 23h1v1h-1zM4 23h3v1h-3zM8 23h1v1h-1zM12 23h1v1h-1zM15 23h7v1h-7zM24 23h3v1h-3zM2 24h1v1h-1zM4 24h3v1h-3zM8 24h1v1h-1zM12 24h1v1h-1zM19 24h2v1h-2zM23 24h1v1h-1zM25 24h1v1h-1zM2 25h1v1h-1zM8 25h1v1h-1zM11 25h2v1h-2zM14 25h1v1h-1zM16 25h2v1h-2zM21 25h5v1h-5zM2 26h7v1h-7zM10 26h2v1h-2zM13 26h1v1h-1zM15 26h2v1h-2zM19 26h2v1h-2zM24 26h3v1h-3z"/></svg>
+                        <figcaption>Telegram</figcaption>
+                    </figure>
+                    <figure class="barcode">
+                        <svg id="barcode" role="img" aria-label="Barcode"></svg>
+                        <figcaption class="js-cat">STL-009</figcaption>
+                    </figure>
+                </div>
+            </footer>
+        </main>
+
+        <aside class="spine spine-r" aria-hidden="true">
+            <span class="vu" id="vuR"><b></b></span>
+            <span class="spine-logo">stole</span>
+            <span class="spine-title js-now-title">Play Em Like Atari</span>
+            <span class="js-cat">STL-009</span>
+        </aside>
+    </div>
+
+    <div class="sr-only" id="announce" aria-live="polite"></div>
+    <audio id="audio" preload="metadata"></audio>
+</body>
+</html>
