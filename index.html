@@ -28,7 +28,7 @@
     <script>
         try {
             var ed = localStorage.getItem('stole:edition');
-            if (/^(silver|black|ice|bootleg)$/.test(ed)) document.documentElement.dataset.edition = ed;
+            if (/^(silver|black|ice|bootleg|ultraviolet|anaglyph|pinknoise|aero)$/.test(ed)) document.documentElement.dataset.edition = ed;
         } catch (e) {}
     </script>
 
@@ -93,6 +93,26 @@
                             <input type="radio" name="edition" value="bootleg" id="ed-bootleg">
                             <span class="case-spine" aria-hidden="true"><b></b><em>CDR</em></span>
                             <span class="sr-only">Bootleg</span>
+                        </label>
+                        <label class="case case-secret" title="Ultraviolet edition" style="--c-paper:#1c0f33;--c-ink:#f1e6ff;--c-spot:#ff52d9">
+                            <input type="radio" name="edition" value="ultraviolet" id="ed-ultraviolet">
+                            <span class="case-spine" aria-hidden="true"><b></b><em>UV</em></span>
+                            <span class="sr-only">Ultraviolet</span>
+                        </label>
+                        <label class="case case-secret" title="Anaglyph edition" style="--c-paper:#a8121f;--c-ink:#fff1ea;--c-spot:#7cc0ff">
+                            <input type="radio" name="edition" value="anaglyph" id="ed-anaglyph">
+                            <span class="case-spine" aria-hidden="true"><b></b><em>3D</em></span>
+                            <span class="sr-only">Anaglyph</span>
+                        </label>
+                        <label class="case case-secret" title="Pink Noise edition" style="--c-paper:#0c0a0d;--c-ink:#ffe4f1;--c-spot:#ff3796">
+                            <input type="radio" name="edition" value="pinknoise" id="ed-pinknoise">
+                            <span class="case-spine" aria-hidden="true"><b></b><em>PN</em></span>
+                            <span class="sr-only">Pink Noise</span>
+                        </label>
+                        <label class="case case-secret" title="Aero edition" style="--c-paper:#eef7f8;--c-ink:#0b2a33;--c-spot:#0f9a43">
+                            <input type="radio" name="edition" value="aero" id="ed-aero">
+                            <span class="case-spine" aria-hidden="true"><b></b><em>AE</em></span>
+                            <span class="sr-only">Aero</span>
                         </label>
                     </span>
                 </fieldset>

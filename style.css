@@ -2,7 +2,8 @@
    Layout: a CD tray card. Spines run down both edges, the contacts are the tracklist on the
    left, the disc and its display sit on the right, small print and a barcode along the foot.
    Editions swap the whole palette, disc included: Silver (light default), Black (dark default),
-   Ice, and Bootleg (photocopied insert, burned CD-R). */
+   Ice, and Bootleg (photocopied insert, burned CD-R). M swaps in a secret shelf of four more:
+   Ultraviolet, Anaglyph, Pink Noise and Aero. */
 
 :root {
     --paper: #dce1e5;
@@ -166,6 +167,130 @@
     --disc-spot: #d42a1f;
     --matrix-ink: rgba(255, 255, 255, .35);
     --grain: .16;
+}
+
+/* ---- the secret shelf (M): four more editions ------------------------------ */
+
+:root[data-edition="ultraviolet"],
+:root[data-edition="anaglyph"],
+:root[data-edition="pinknoise"] { color-scheme: dark; }
+
+:root[data-edition="ultraviolet"],
+:root[data-edition="pinknoise"] {
+    --grain-img: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 0 1'/%3E%3CfeColorMatrix color-interpolation-filters='sRGB' values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 1 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Ultraviolet: deep violet insert under a blacklight, hot pink ink, a purple chrome disc */
+:root[data-edition="ultraviolet"] {
+    --paper: #1c0f33;
+    --paper-2: #26163f;
+    --ink: #f1e6ff;
+    --ink-2: #b7a2d6;
+    --ink-3: #76609a;
+    --rule: rgba(241, 230, 255, .14);
+    --spot: #ff52d9;
+    --on-spot: #2a0322;
+    --clear: rgba(255, 255, 255, .1);
+    --icon-fill: #2a1a47;
+    --shadow: rgba(8, 0, 20, .7);
+    --lcd-off: #6e6080;
+    --lcd-on-1: #ffc8f2;
+    --lcd-on-2: #ff74dc;
+    --lcd-ink: #2a0021;
+    --lcd-glow: rgba(255, 82, 217, .5);
+    --metal-hi: #9a82d0;
+    --metal-mid: #4d3680;
+    --metal-lo: #241640;
+    --data-tint: rgba(0, 0, 0, .3);
+    --disc-ink: #f6eeff;
+    --disc-spot: #ff52d9;
+    --matrix-ink: rgba(255, 255, 255, .3);
+    --grain: .09;
+}
+
+/* Anaglyph: red insert, blue ink knocked out of register like 3D glasses, a blue disc */
+:root[data-edition="anaglyph"] {
+    --paper: #a8121f;
+    --paper-2: #940f1b;
+    --ink: #fff1ea;
+    --ink-2: #f6c0b6;
+    --ink-3: #d9776e;
+    --rule: rgba(255, 241, 234, .2);
+    --spot: #7cc0ff;
+    --on-spot: #04182e;
+    --clear: rgba(255, 255, 255, .12);
+    --icon-fill: #8f0f1b;
+    --shadow: rgba(40, 0, 6, .6);
+    --lcd-off: #8c6f73;
+    --lcd-on-1: #c9e6ff;
+    --lcd-on-2: #6fb3ff;
+    --lcd-ink: #021a36;
+    --lcd-glow: rgba(110, 180, 255, .5);
+    --metal-hi: #c2dcff;
+    --metal-mid: #5a8fe0;
+    --metal-lo: #23408c;
+    --data-tint: rgba(0, 10, 40, .3);
+    --disc-ink: #081a3a;
+    --disc-spot: #e8202f;
+    --matrix-ink: rgba(255, 255, 255, .35);
+    --grain: .12;
+}
+
+/* Pink Noise: black insert, hot pink everything else, a pink chrome disc */
+:root[data-edition="pinknoise"] {
+    --paper: #0c0a0d;
+    --paper-2: #151217;
+    --ink: #ffe4f1;
+    --ink-2: #c79cb1;
+    --ink-3: #6f5463;
+    --rule: rgba(255, 228, 241, .13);
+    --spot: #ff3796;
+    --on-spot: #23000f;
+    --clear: rgba(255, 255, 255, .1);
+    --icon-fill: #1a1418;
+    --shadow: rgba(0, 0, 0, .75);
+    --lcd-off: #6d5e65;
+    --lcd-on-1: #ffd1e6;
+    --lcd-on-2: #ff69ad;
+    --lcd-ink: #2b0015;
+    --lcd-glow: rgba(255, 55, 150, .5);
+    --metal-hi: #ffc4de;
+    --metal-mid: #e05a98;
+    --metal-lo: #7a1f4a;
+    --data-tint: rgba(60, 0, 30, .25);
+    --disc-ink: #1a0010;
+    --disc-spot: #ffffff;
+    --matrix-ink: rgba(40, 0, 20, .4);
+    --grain: .09;
+}
+
+/* Aero: glossy white insert, grass green ink, sky blue highlighter, backlight and disc */
+:root[data-edition="aero"] {
+    --paper: #eef7f8;
+    --paper-2: #dcedf0;
+    --ink: #0b2a33;
+    --ink-2: #3c6672;
+    --ink-3: #83a7b0;
+    --rule: rgba(11, 42, 51, .15);
+    --spot: #0f9a43;
+    --on-spot: #ffffff;
+    --mark: #9fe3ff;
+    --mark-h: .5em;
+    --clear: rgba(255, 255, 255, .5);
+    --icon-fill: #ffffff;
+    --shadow: rgba(20, 70, 90, .3);
+    --lcd-off: #a9bfc4;
+    --lcd-on-1: #d4f6ff;
+    --lcd-on-2: #6fd3ff;
+    --lcd-ink: #022634;
+    --lcd-glow: rgba(90, 200, 255, .45);
+    --metal-hi: #ffffff;
+    --metal-mid: #bfe7f5;
+    --metal-lo: #84c6e0;
+    --data-tint: rgba(0, 80, 120, .12);
+    --disc-ink: #0b2a33;
+    --disc-spot: #0f9a43;
+    --grain: .05;
 }
 
 /* ---- base ------------------------------------------------------------------ */
@@ -474,6 +599,11 @@ kbd {
 }
 .case input:focus-visible + .case-spine { outline: 2px solid var(--spot); outline-offset: 2px; }
 
+/* the secret shelf stands in for the usual four while one of its editions is on (press M) */
+.case-secret,
+:root:is([data-edition="ultraviolet"], [data-edition="anaglyph"], [data-edition="pinknoise"], [data-edition="aero"]) .case { display: none; }
+:root:is([data-edition="ultraviolet"], [data-edition="anaglyph"], [data-edition="pinknoise"], [data-edition="aero"]) .case-secret { display: block; }
+
 /* the new insert slides in over the old one */
 ::view-transition-old(root),
 ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
@@ -511,13 +641,21 @@ kbd {
     transition-delay: .25s;
 }
 
+/* backface-visibility alone isn't enough: Safari and some desktop browsers still draw the far
+   side mirrored when parts of it sit on their own layers (the rise-in, the logo). So each face
+   also switches off at the moment the insert stands edge-on, .12s into the .9s turn (after the
+   .25s wait when opening). Opacity as well as visibility, because the pixel icons set their own. */
 .face {
     grid-area: 1 / 1;
     min-width: 0;
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
+    transition: opacity 0s .12s, visibility 0s .12s;
 }
-.face-back { transform: rotateY(180deg); }
+.face-back { transform: rotateY(180deg); opacity: 0; visibility: hidden; }
+.is-ejected .face { transition-delay: .37s; }
+.is-ejected .face-front { opacity: 0; visibility: hidden; }
+.is-ejected .face-back { opacity: 1; visibility: visible; }
 
 .logo {
     display: flex;
@@ -1983,6 +2121,40 @@ kbd {
 .flight.is-still .cr-f0,
 .flight.is-still .cr-f1 { animation: none; }
 
+/* ---- type D-O-G: the dog peeks up over the bottom edge ------------------------ */
+
+.peek {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    width: clamp(150px, 30vw, 260px);
+    margin-inline: auto;
+    pointer-events: none;
+}
+.peek svg { display: block; width: 100%; height: auto; }
+
+/* frames: 0 eyes open, 1 blink, 2 tongue out */
+.peek .cr-f1,
+.peek .cr-f2,
+.peek[data-f="1"] .cr-f0,
+.peek[data-f="2"] .cr-f0 { visibility: hidden; }
+.peek[data-f="1"] .cr-f1,
+.peek[data-f="2"] .cr-f2 { visibility: visible; }
+
+.peek-woof {
+    position: absolute;
+    left: 80%;
+    top: 2%;
+    padding: .3em .5em;
+    font: 900 clamp(1rem, .8rem + 1vw, 1.5rem)/1 var(--f-dot);
+    color: var(--on-spot);
+    background: var(--spot);
+    white-space: nowrap;
+    opacity: 0;
+}
+
 /* ---- load sequence: the disc rolls into place ------------------------------- */
 
 @media (prefers-reduced-motion: no-preference) {
@@ -2009,6 +2181,7 @@ kbd {
     .logo-word::before { transform: translate(.014em, .006em); will-change: auto; }
     ::view-transition-new(root) { animation: none; }
     .flip-inner,
+    .face,
     .disc-body { transition: none !important; }
 }
 

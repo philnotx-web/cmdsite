@@ -17,11 +17,16 @@
         tracks: [{ id: 'local', title: 'Play Em Like Atari', artist: 'Vanish Boys', file: 'music.mp3' }],
     };
 
+    // dark: light ink on dark paper. secret: on the shelf M unlocks, which T then cycles instead
     const EDITIONS = {
         silver: { name: 'Silver', cat: 'STL-009', code: '01' },
-        black: { name: 'Black', cat: 'STL-009-BK', code: '02' },
+        black: { name: 'Black', cat: 'STL-009-BK', code: '02', dark: true },
         ice: { name: 'Ice', cat: 'STL-009-IC', code: '03' },
         bootleg: { name: 'Bootleg', cat: 'STL-009-CDR', code: '04' },
+        ultraviolet: { name: 'Ultraviolet', cat: 'STL-009-UV', code: '05', dark: true, secret: true },
+        anaglyph: { name: 'Anaglyph', cat: 'STL-009-3D', code: '06', dark: true, secret: true },
+        pinknoise: { name: 'Pink Noise', cat: 'STL-009-PN', code: '07', dark: true, secret: true },
+        aero: { name: 'Aero', cat: 'STL-009-AE', code: '08', secret: true },
     };
 
     // ---- helpers ------------------------------------------------------------
@@ -193,15 +198,18 @@
         if (input) input.checked = true;
         drawBarcode($('#barcode'), CONFIG.barcodeBase + info.code);
         paintAvatar();
+        paintFavicon();
         if (root.dataset.edition) {
             const paper = getComputedStyle(root).getPropertyValue('--paper').trim();
             $$('meta[name="theme-color"]').forEach((m) => { m.content = paper; });
         }
     }
 
-    function setEdition(ed) {
+    function setEdition(ed, note) {
         if (!EDITIONS[ed] || (root.dataset.edition === ed)) return;
         store.set('stole:edition', ed);
+        // each shelf remembers its last pick, so M lands back where you were
+        store.set(EDITIONS[ed].secret ? 'stole:edition-secret' : 'stole:edition-public', ed);
         const apply = () => { root.dataset.edition = ed; syncEdition(); };
         if (document.startViewTransition && !reduceMotion.matches) {
             document.startViewTransition(apply);
@@ -211,13 +219,24 @@
             clearTimeout(switchTimer);
             switchTimer = setTimeout(() => root.classList.remove('is-switching'), 600);
         }
-        lcdMessage(`${EDITIONS[ed].name} edition · ${EDITIONS[ed].cat}`);
-        announce(`${EDITIONS[ed].name} edition`);
+        lcdMessage(note ? `${note} · ${EDITIONS[ed].name}` : `${EDITIONS[ed].name} edition · ${EDITIONS[ed].cat}`);
+        announce(note ? `${note}. ${EDITIONS[ed].name} edition` : `${EDITIONS[ed].name} edition`);
     }
 
+    // T cycles the shelf you're on
     function nextEdition() {
-        const keys = Object.keys(EDITIONS);
+        const secret = !!EDITIONS[currentEdition()].secret;
+        const keys = Object.keys(EDITIONS).filter((k) => !!EDITIONS[k].secret === secret);
         setEdition(keys[(keys.indexOf(currentEdition()) + 1) % keys.length]);
+    }
+
+    // M swaps the secret shelf in, and M again puts the usual one back
+    function toggleSecretShelf() {
+        const opening = !EDITIONS[currentEdition()].secret;
+        const back = store.get(opening ? 'stole:edition-secret' : 'stole:edition-public');
+        const fits = (k) => EDITIONS[k] && !!EDITIONS[k].secret === opening;
+        const ed = fits(back) ? back : (opening ? 'ultraviolet' : (darkScheme.matches ? 'black' : 'silver'));
+        setEdition(ed, opening ? 'Secret shelf' : 'Secret shelf off');
     }
 
     $('#shelf').addEventListener('change', (e) => {
@@ -247,26 +266,36 @@
     let lightTimer = 0;
     let scratch = null;    // set while a hand is on the disc
 
-    // vinyl-style pitch bend while scratching
-    audio.preservesPitch = false;
-    audio.mozPreservesPitch = false;
-    audio.webkitPreservesPitch = false;
-
     let actx; // undefined = not tried yet, null = unavailable
     let gain = null, anMain = null, anL = null, anR = null;
+    let fxGain = null;     // the scratch record and the dog, alongside the music
     let bufL, bufR, freqBuf, bandBins;
 
     function ensureAudioGraph() {
         if (actx !== undefined) return;
         actx = null;
-        // From file:// the browser treats audio as cross-origin and Web Audio would output silence
-        if (!overHttp) return;
         const AC = window.AudioContext || window.webkitAudioContext;
         if (!AC) return;
         try {
             actx = new AC();
+            fxGain = actx.createGain();
+            fxGain.gain.value = (vol / 100) ** 2;
+            fxGain.connect(actx.destination);
+        } catch {
+            actx = fxGain = null;
+            return;
+        }
+        // iOS mutes Web Audio with the ring switch unless the page says it plays media, like the music
+        if (navigator.audioSession) navigator.audioSession.type = 'playback';
+        // the scratch record takes a moment to press, so it's done once the page is idle
+        (window.requestIdleCallback || ((fn) => setTimeout(fn, 1000)))(ensureScratchVoice);
+        // From file:// the browser treats audio as cross-origin and Web Audio would output silence,
+        // so the music only goes through the graph over http; the scratch and the dog work either way
+        if (!overHttp) return;
+        try {
             const src = actx.createMediaElementSource(audio);
             gain = actx.createGain();
+            gain.gain.value = (vol / 100) ** 2;
             src.connect(gain).connect(actx.destination);
 
             anMain = actx.createAnalyser();
@@ -294,18 +323,20 @@
             bufR = new Float32Array(anR.fftSize);
             applyVolume();
         } catch {
-            actx = null;
             gain = anMain = anL = anR = null;
         }
     }
 
-    // volume goes through a GainNode when available, because iOS ignores audio.volume
+    // volume goes through a GainNode when available, because iOS ignores audio.volume.
+    // While a hand is on the disc the music dips, so the scratch sits on top of it like a DJ's.
     let vol = clamp(parseInt(store.get('stole:vol') ?? '70', 10) || 0, 0, 100);
+    let duck = 1;
     volIn.value = vol;
     function applyVolume() {
         const v = (vol / 100) ** 2;
-        if (gain) { audio.volume = 1; gain.gain.value = v; }
+        if (gain) { audio.volume = 1; gain.gain.setTargetAtTime(v * duck, actx.currentTime, .04); }
         else audio.volume = v;
+        fxGain?.gain.setTargetAtTime(v, actx.currentTime, .02);
     }
     applyVolume();
     volIn.addEventListener('input', () => {
@@ -375,7 +406,7 @@
         }
         const dur = audio.duration;
         const known = Number.isFinite(dur) && dur > 0;
-        const stopped = !playing && t === 0 && !scrubbing && !scratch;
+        const stopped = !playing && t === 0 && !scrubbing;
         let v = t;
         let cap = 'Time';
         if (stopped) { v = known ? dur : 0; cap = 'Total'; }
@@ -387,7 +418,7 @@
         setDigits(timeDigits, stopped && !known ? ' -- ' : lead + (m % 10) + Math.floor(s / 10) + (s % 10));
         colon.classList.toggle('off', stopped && !known);
         if (timeCap.textContent !== cap) timeCap.textContent = cap;
-        deck.classList.toggle('is-paused', !playing && t > 0 && !scrubbing && !scratch);
+        deck.classList.toggle('is-paused', !playing && t > 0 && !scrubbing);
     }
 
     let seekLabel = '';
@@ -724,9 +755,9 @@
         renderSeek(audio.currentTime);
     });
     audio.addEventListener('playing', () => { errorStreak = 0; });
-    audio.addEventListener('play', () => { if (!scratch) { wantPlay = true; setPlaying(true); } });
+    audio.addEventListener('play', () => { wantPlay = true; setPlaying(true); });
     audio.addEventListener('pause', () => {
-        if (scratch || switching || audio.ended) return;
+        if (switching || audio.ended) return;
         wantPlay = false;
         setPlaying(false);
     });
@@ -969,6 +1000,229 @@
         return changed;
     }
 
+    // ---- sound effects: a formant voice ---------------------------------------------------
+    // Harmonics of a pitch curve, each weighted by how near it sits to the mouth's resonances
+    // (formants), plus breath. Sings the scratch record's "ahh" and barks for the dog.
+
+    function formantVoice(rate, dur, { pitch, formants, amp, breath = 0, rough = 0, drive = 0 }) {
+        const n = Math.round(rate * dur);
+        const out = new Float32Array(n);
+        const amps = new Float32Array(64);
+        let ph = 0, sub = 0, lp = 0, lp2 = 0, kMax = 0, peak = 0;
+        for (let i = 0; i < n; i++) {
+            const t = i / rate;
+            const f0 = pitch(t);
+            if (i % 32 === 0) { // the spectrum drifts slowly, so it's reshaped every 32 samples
+                const fm = formants(t);
+                kMax = Math.min(64, Math.floor(5500 / f0));
+                for (let k = 1; k <= kMax; k++) {
+                    let h = 0;
+                    for (const [F, B, g] of fm) { const x = (k * f0 - F) / (B / 2); h += g / (1 + x * x); }
+                    amps[k - 1] = h / k;
+                }
+            }
+            ph = (ph + f0 / rate) % 1;
+            // sin(kθ) for every harmonic from one sin and one cos: sin(kθ) = 2cosθ·sin((k−1)θ) − sin((k−2)θ)
+            const c2 = 2 * Math.cos(2 * Math.PI * ph);
+            let sk = Math.sin(2 * Math.PI * ph), sk1 = 0, s = 0;
+            for (let k = 1; k <= kMax; k++) {
+                s += amps[k - 1] * sk;
+                const next = c2 * sk - sk1;
+                sk1 = sk;
+                sk = next;
+            }
+            // roughness: every other cycle comes out weaker, like a rasp
+            if (rough) { sub = (sub + f0 / 2 / rate) % 1; s *= 1 - rough * (.5 + .5 * Math.sin(2 * Math.PI * sub)); }
+            // breath: white noise between two one-pole filters, roughly 400 Hz to 3 kHz
+            lp += (Math.random() * 2 - 1 - lp) * .35;
+            lp2 += (lp - lp2) * .05;
+            s = (s + (lp - lp2) * breath) * amp(t);
+            out[i] = s;
+            peak = Math.max(peak, Math.abs(s));
+        }
+        const norm = drive ? Math.tanh(drive) : 1;
+        for (let i = 0; i < n; i++) {
+            const s = out[i] / (peak || 1);
+            out[i] = (drive ? Math.tanh(s * drive) / norm : s) * .9;
+        }
+        return out;
+    }
+
+    // the scratch record: a sung "ahh" between short gaps; every touch starts the hand at its attack
+    const CUT = { lead: .03, len: .4, tail: .07 };
+    function scratchSample(rate) {
+        const { lead, len, tail } = CUT;
+        return formantVoice(rate, lead + len + tail, {
+            pitch: (t) => 150 * (1 + .05 * clamp(1 - (t - lead) / len, 0, 1)) * (1 + .008 * Math.sin(2 * Math.PI * 5.5 * t)),
+            formants: () => [[730, 110, 1], [1090, 130, .6], [2440, 180, .3], [3400, 260, .15]],
+            amp: (t) => {
+                const x = t - lead;
+                return x < 0 || x > len ? 0 : Math.min(1, x / .012) * Math.min(1, (len - x) / .09) ** 1.5;
+            },
+            breath: .06,
+        });
+    }
+
+    // two barks from a big dog: up fast, then down, rough and breathy, the mouth opening on the "w"
+    function woofSample(rate) {
+        const second = .3;
+        const local = (t) => (t >= second ? t - second : t);
+        return formantVoice(rate, second + .3, {
+            pitch: (t) => {
+                const x = local(t);
+                return (x < .03 ? 240 + 3000 * x : 170 + 160 * Math.exp(-(x - .03) / .07)) * (t >= second ? .92 : 1);
+            },
+            formants: (t) => {
+                const open = Math.min(1, local(t) / .06);
+                return [[350 + 220 * open, 160, 1], [750 + 280 * open, 220, .7], [2600, 320, .3]];
+            },
+            amp: (t) => {
+                const x = local(t);
+                return x > .26 ? 0 : Math.min(1, x / .006) * Math.exp(-Math.max(0, x - .025) / .065);
+            },
+            breath: .35,
+            rough: .45,
+            drive: 2.2,
+        });
+    }
+
+    // ---- the scratch record ------------------------------------------------------------------
+    // Scratching never touches the song: a stream can't seek that fast without breaking up, and
+    // running into the end of a track skipped to the next one. A hand on the disc plays the cut
+    // above over the music instead. The read head follows the hand: forward plays it, backward
+    // plays it reversed, still is silent, and the pitch goes with the speed.
+
+    const SCRATCH_1X = 220; // deg/s of hand movement that plays the cut at its own pitch
+
+    // Kept as a plain class so the same code runs in an AudioWorklet or, without one, a ScriptProcessor
+    class ScratchHead {
+        constructor(data, rate) {
+            this.data = data;
+            this.pos = 0;
+            this.speed = 0;
+            this.target = 0;
+            this.follow = 1 - Math.exp(-1 / (rate * .01)); // trails the hand by ~10 ms, so jumps glide
+        }
+
+        message(m) {
+            if (m.speed !== undefined) this.target = m.speed;
+            if (m.cue !== undefined && Math.abs(this.speed) < .02) this.pos = m.cue;
+        }
+
+        render(out) {
+            const d = this.data;
+            const n = d.length;
+            for (let i = 0; i < out.length; i++) {
+                this.speed += (this.target - this.speed) * this.follow;
+                this.pos += this.speed;
+                if (this.pos >= n) this.pos -= n;
+                else if (this.pos < 0) this.pos += n;
+                const i0 = Math.floor(this.pos);
+                const s = d[i0] + (d[(i0 + 1) % n] - d[i0]) * (this.pos - i0);
+                // like a cartridge, louder with speed: a still record is silent, a slow one quiet
+                out[i] = s * Math.min(1, Math.abs(this.speed) * 2.5);
+            }
+        }
+    }
+
+    const SCRATCH_WORKLET = `${ScratchHead}
+registerProcessor('scratch-head', class extends AudioWorkletProcessor {
+    constructor(opts) {
+        super();
+        this.head = new ScratchHead(opts.processorOptions.data, sampleRate);
+        this.port.onmessage = (e) => this.head.message(e.data);
+    }
+    process(inputs, outputs) {
+        this.head.render(outputs[0][0]);
+        return true;
+    }
+});`;
+
+    let scratchVoice; // undefined = not built yet, null = building or unavailable
+    function ensureScratchVoice() {
+        if (scratchVoice !== undefined || !actx) return;
+        scratchVoice = null;
+        const rate = actx.sampleRate;
+        const data = scratchSample(rate);
+        const cue = Math.round(rate * CUT.lead);
+        const voice = (send) => ({
+            cue: () => send({ cue }),
+            // hand speed eases off towards 4x, past which the cut turns to chirps
+            move: (speed) => send({ speed: Number.isFinite(speed) ? 4 * Math.tanh(speed / 4) : 0 }),
+        });
+        // the main-thread version, for browsers without AudioWorklet
+        const fallback = () => {
+            try {
+                const head = new ScratchHead(data, rate);
+                const node = actx.createScriptProcessor(1024, 1, 1);
+                node.onaudioprocess = (e) => head.render(e.outputBuffer.getChannelData(0));
+                node.connect(fxGain);
+                scratchVoice = voice((m) => head.message(m));
+            } catch { /* no way to play it; scratching stays silent */ }
+        };
+        // a worklet runs on the audio thread, so a busy page can't make it stutter
+        if (!actx.audioWorklet) { fallback(); return; }
+        const url = URL.createObjectURL(new Blob([SCRATCH_WORKLET], { type: 'text/javascript' }));
+        actx.audioWorklet.addModule(url).then(() => {
+            const node = new AudioWorkletNode(actx, 'scratch-head', {
+                numberOfInputs: 0, outputChannelCount: [1], processorOptions: { data },
+            });
+            node.connect(fxGain);
+            scratchVoice = voice((m) => node.port.postMessage(m));
+        }).catch(fallback).finally(() => URL.revokeObjectURL(url));
+    }
+
+    // The bark is woof.mp3 next to the page. The synthesised one stands in when the file can't be
+    // read, which includes every time the page is opened straight from disk.
+    let woofLoad = null;
+    function loadWoof() {
+        ensureAudioGraph();
+        if (!actx) return Promise.resolve(null);
+        if (!woofLoad) {
+            woofLoad = (overHttp ? fetch('woof.mp3') : Promise.reject(new Error('read from disk')))
+                .then((res) => { if (!res.ok) throw new Error(`woof.mp3: ${res.status}`); return res.arrayBuffer(); })
+                .then((data) => new Promise((ok, fail) => actx.decodeAudioData(data, ok, fail)))
+                .catch(() => {
+                    const data = woofSample(actx.sampleRate);
+                    const buf = actx.createBuffer(1, data.length, actx.sampleRate);
+                    buf.getChannelData(0).set(data);
+                    return buf;
+                })
+                .then((buf) => ({ buf, ...listenToBark(buf) }));
+        }
+        return woofLoad;
+    }
+
+    // how loud the recording peaks, to level it with the scratch, and where each bark starts, for the hops
+    function listenToBark(buf) {
+        const d = buf.getChannelData(0);
+        const step = Math.round(buf.sampleRate * .01);
+        const env = [];
+        for (let i = 0; i < d.length; i += step) {
+            let m = 0;
+            for (let j = i; j < Math.min(d.length, i + step); j++) m = Math.max(m, Math.abs(d[j]));
+            env.push(m);
+        }
+        const peak = Math.max(...env) || 1;
+        const barks = [];
+        let quiet = true;
+        env.forEach((v, i) => {
+            if (quiet && v > peak * .35) { barks.push(i * .01); quiet = false; }
+            else if (v < peak * .12) quiet = true;
+        });
+        return { level: Math.min(4, .9 / peak), barks };
+    }
+
+    function playWoof({ buf, level }) {
+        if (actx.state === 'suspended') actx.resume();
+        const src = actx.createBufferSource();
+        const g = actx.createGain();
+        g.gain.value = level;
+        src.buffer = buf;
+        src.connect(g).connect(fxGain);
+        src.start(actx.currentTime + .02);
+    }
+
     // ---- disc: spin, scratch and light --------------------------------------------
 
     const SPIN = 150; // deg/s at normal speed, so turning the disc this fast by hand plays at 1x
@@ -1008,10 +1262,9 @@
         disc.setPointerCapture(e.pointerId);
         ensureAudioGraph();
         if (actx && actx.state === 'suspended') actx.resume();
-        scratch = {
-            a: p.a, t: performance.now(), vel, moved: 0,
-            wasPlaying: !audio.paused, time: audio.currentTime || 0,
-        };
+        ensureScratchVoice();
+        scratchVoice?.cue();
+        scratch = { a: p.a, t: performance.now(), vel, moved: 0 };
         deck.classList.add('is-scratching');
     });
 
@@ -1025,10 +1278,9 @@
         scratch.t = now;
         if (p.r < .1) return; // too close to the centre to tell which way it turned
         scratch.moved += Math.abs(d);
+        if (scratch.moved >= 3) setDuck(true); // past a tap: the music steps back for the scratch
         angle = (angle + d + 360) % 360;
         scratch.vel += (d / dt - scratch.vel) * .4;
-        const dur = audio.duration;
-        if (Number.isFinite(dur) && !noDisc) scratch.time = clamp(scratch.time + d / SPIN, 0, Math.max(0, dur - .05));
     });
 
     function endScratch() {
@@ -1036,33 +1288,19 @@
         const s = scratch;
         scratch = null;
         deck.classList.remove('is-scratching');
-        audio.playbackRate = 1;
-        const tap = s.moved < 3;
-        const dur = audio.duration;
-        if (!tap && Number.isFinite(dur) && !noDisc) audio.currentTime = s.time;
-        if (noDisc) { if (tap) toggle(); return; }
-        // a tap toggles play; a scratch goes back to whatever the deck was doing
-        const resume = tap ? !s.wasPlaying : s.wasPlaying;
-        wantPlay = resume;
-        if (resume) play(); else audio.pause();
-        setPlaying(resume);
-        if (!tap) vel = s.vel; // a flick keeps the disc turning, then the motor takes over
+        scratchVoice?.move(0);
+        setDuck(false);
+        if (s.moved < 3) { toggle(); return; } // a tap plays or pauses
+        vel = s.vel; // a flick keeps the disc turning, then the motor takes over
     }
     disc.addEventListener('pointerup', endScratch);
     disc.addEventListener('pointercancel', endScratch);
 
-    // forward at speed plays (pitched with the hand), held still or backwards stays silent and seeks
-    function scratchAudio() {
-        if (noDisc || !Number.isFinite(audio.duration)) return;
-        const speed = scratch.vel / SPIN;
-        if (speed > .2) {
-            audio.playbackRate = clamp(speed, .25, 4);
-            if (Math.abs(audio.currentTime - scratch.time) > .25) audio.currentTime = scratch.time;
-            if (audio.paused) audio.play().catch(() => {});
-        } else {
-            if (!audio.paused) audio.pause();
-            if (Math.abs(audio.currentTime - scratch.time) > .1) audio.currentTime = scratch.time;
-        }
+    function setDuck(on) {
+        const d = on && scratchVoice ? .5 : 1;
+        if (d === duck) return;
+        duck = d;
+        applyVolume();
     }
 
     addEventListener('pointermove', (e) => {
@@ -1243,7 +1481,7 @@
         const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
         const N = dAvatar.width;
         const g = dAvatar.getContext('2d');
-        const darkPaper = currentEdition() === 'black';
+        const darkPaper = !!EDITIONS[currentEdition()].dark;
         g.clearRect(0, 0, N, N);
         g.fillStyle = getComputedStyle(root).getPropertyValue('--ink').trim() || '#101317';
         for (let i = 0; i < avatarLum.length; i++) {
@@ -1462,9 +1700,7 @@
             if (now - scratch.t > 50) scratch.vel *= Math.exp(-dt / .06);
             vel = scratch.vel;
             discRot.style.transform = `rotate(${angle.toFixed(2)}deg)`;
-            scratchAudio();
-            renderDisplay(scratch.time);
-            renderSeek(scratch.time);
+            scratchVoice?.move(scratch.vel / SCRATCH_1X);
         } else {
             // spin up quicker than it spins down, like a motor with a heavy disc on it
             const target = playing && !reduceMotion.matches ? SPIN : 0;
@@ -1474,10 +1710,10 @@
                 angle = (angle + vel * dt + 360) % 360;
                 discRot.style.transform = `rotate(${angle.toFixed(2)}deg)`;
             }
-            if (!scrubbing && !noDisc && playing) {
-                renderDisplay();
-                renderSeek(audio.currentTime);
-            }
+        }
+        if (!scrubbing && !noDisc && playing) {
+            renderDisplay();
+            renderSeek(audio.currentTime);
         }
 
         const diff = ((((sheenTarget - sheen) % 360) + 540) % 360) - 180;
@@ -1753,23 +1989,27 @@
     const CRITTER_COLOURS = {
         K: '#1b1b1e', k: '#42424a', W: '#f4f1ea', R: '#b5572a', P: '#e86a7a', E: '#101012',
         F: '#ffffff', g: '#bec4cc', G: '#8b8780', L: '#d0cac0', D: '#4a4642', C: '#f0e8d6',
+        B: '#7a4520', M: '#4a1418', Q: '#c94f62',
     };
 
     function drawCritter(frames) {
         let out = '';
+        let w = 0, h = 0;
         frames.forEach((art, f) => {
             const rows = art.trim().split('\n').map((r) => r.trim());
+            w = rows[0].length;
+            h = rows.length;
             const at = (x, y) => rows[y]?.[x] ?? '.';
             const filled = (x, y) => at(x, y) !== '.';
             const kind = (x, y) => (filled(x, y) ? at(x, y)
                 : filled(x - 1, y) || filled(x + 1, y) || filled(x, y - 1) || filled(x, y + 1) ? 'o' : null);
             const paths = {};
             for (let y = -1; y <= rows.length; y++) {
-                for (let x = -1; x <= 28;) {
+                for (let x = -1; x <= w;) {
                     const k = kind(x, y);
                     if (!k) { x++; continue; }
                     let len = 1;
-                    while (x + len <= 28 && kind(x + len, y) === k) len++;
+                    while (x + len <= w && kind(x + len, y) === k) len++;
                     paths[k] = (paths[k] || '') + `M${x + 1} ${y + 1}h${len}v1h${-len}z`;
                     x += len;
                 }
@@ -1778,7 +2018,7 @@
             for (const k in paths) out += k === 'o' ? `<path class="cr-o" d="${paths[k]}"/>` : `<path fill="${CRITTER_COLOURS[k]}" d="${paths[k]}"/>`;
             out += '</g>';
         });
-        return `<svg viewBox="0 0 30 18" shape-rendering="crispEdges">${out}</svg>`;
+        return `<svg viewBox="0 0 ${w + 2} ${h + 2}" shape-rendering="crispEdges">${out}</svg>`;
     }
 
     let flyLayer = null;
@@ -1816,6 +2056,118 @@
         }
         if (anim) anim.finished.then(() => flight.remove(), () => flight.remove());
         else setTimeout(() => flight.remove(), 2600);
+    }
+
+    // ---- type D-O-G: a Bernese pops up from the bottom, blinks, woofs and ducks away ----------
+    // The left half of the face, mirrored for the right. Frames: eyes open, blink, tongue out.
+
+    const DOG_FACE = [`
+        ........KKKK
+        ......KKKKKW
+        .....KKKKKKW
+        ...kKKKKKKKW
+        ..kKKKKRRKKW
+        .kKKKKKKKKKW
+        .kKKkKKFBKKW
+        .kKKkKKBBKKW
+        .kKKkKKKKKWW
+        .kKKkRKKWWEE
+        .kKKkRRWWWWE
+        .kKKkRRWEWWE
+        .KKKkRWWWEEE
+        ..KKkKWWWWWW
+        .....KKKWWWW
+        ....KKKKKWWW
+        ...KKKKKKWWW
+        ..KKKKKKKWWW`, `
+        ........KKKK
+        ......KKKKKW
+        .....KKKKKKW
+        ...kKKKKKKKW
+        ..kKKKKRRKKW
+        .kKKKKKKKKKW
+        .kKKkKKKKKKW
+        .kKKkKBBBBKW
+        .kKKkKKKKKWW
+        .kKKkRKKWWEE
+        .kKKkRRWWWWE
+        .kKKkRRWEWWE
+        .KKKkRWWWEEE
+        ..KKkKWWWWWW
+        .....KKKWWWW
+        ....KKKKKWWW
+        ...KKKKKKWWW
+        ..KKKKKKKWWW`, `
+        ........KKKK
+        ......KKKKKW
+        .....KKKKKKW
+        ...kKKKKKKKW
+        ..kKKKKRRKKW
+        .kKKKKKKKKKW
+        .kKKkKKFBKKW
+        .kKKkKKBBKKW
+        .kKKkKKKKKWW
+        .kKKkRKKWWEE
+        .kKKkRRWWWWE
+        .kKKkRRWEWWE
+        .KKKkRWWEMMM
+        ..KKkKWWEPPP
+        .....KKKWPPP
+        ....KKKKKWPQ
+        ...KKKKKKWWP
+        ..KKKKKKKWWW`];
+    const mirrorHalf = (half) => half.trim().split('\n').map((r) => r.trim() + [...r.trim()].reverse().join('')).join('\n');
+
+    let dogOut = false;
+    function dogPeek() {
+        if (dogOut) return;
+        dogOut = true;
+        const still = reduceMotion.matches || !document.body.animate;
+        const el = document.createElement('div');
+        el.className = 'peek';
+        el.setAttribute('aria-hidden', 'true');
+        el.innerHTML = `${drawCritter(DOG_FACE.map(mirrorHalf))}<span class="peek-woof">Woof!</span>`;
+        document.body.appendChild(el);
+        const bubble = el.lastElementChild;
+        const frame = (f) => { el.dataset.f = f; };
+        const at = (ms, fn) => setTimeout(fn, ms);
+        const bark = loadWoof(); // fetched now, so it's ready by the time the dog opens its mouth
+        frame(0);
+
+        // up from below the edge, settling with a little bounce
+        if (still) el.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: 200 });
+        else el.animate([{ transform: 'translateY(105%)' }, { transform: 'none' }], { duration: 460, easing: 'cubic-bezier(.2, 1.35, .4, 1)' });
+
+        at(650, () => frame(1));
+        at(780, () => frame(0));
+        at(950, () => frame(2));
+        at(1080, () => bark.then((w) => {
+            if (w) playWoof(w);
+            lcdMessage('Woof woof', 1800);
+            announce('A Bernese mountain dog says woof woof.');
+            // one hop and one bubble per bark, in time with the sound
+            (w ? w.barks.slice(0, 4) : []).forEach((s) => at(20 + s * 1000, () => {
+                if (!still) el.animate([{ transform: 'none' }, { transform: 'translateY(-7%)' }, { transform: 'none' }], { duration: 230, easing: 'ease-out' });
+                bubble.animate?.([
+                    { opacity: 0, transform: 'scale(.4) rotate(-8deg)' },
+                    { opacity: 1, transform: 'scale(1.1) rotate(-8deg)', offset: .25 },
+                    { opacity: 1, transform: 'scale(1) rotate(-8deg)', offset: .7 },
+                    { opacity: 0, transform: 'scale(1) rotate(-8deg)' },
+                ], { duration: 420, easing: 'ease-out' });
+            }));
+            // once the barking is over: a blink, tongue in, and back down
+            const end = 20 + Math.min(6, w ? w.buf.duration : .6) * 1000;
+            at(end + 120, () => frame(1));
+            at(end + 240, () => frame(0));
+            at(end + 380, () => {
+                const away = still
+                    ? el.animate?.([{ opacity: 1 }, { opacity: 0 }], { duration: 200, fill: 'forwards' })
+                    : el.animate([{ transform: 'none' }, { transform: 'translateY(105%)' }], { duration: 380, easing: 'cubic-bezier(.5, 0, .9, .4)', fill: 'forwards' });
+                const done = () => { el.remove(); dogOut = false; };
+                if (away) away.finished.then(done, done);
+                else done();
+            });
+        }));
     }
 
     // ---- contacts -------------------------------------------------------------
@@ -1866,12 +2218,21 @@
         });
     });
 
+    let typed = '';
+    let typedAt = 0;
     document.addEventListener('keydown', (e) => {
         if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
         const el = e.target;
         const typing = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable;
         const interactive = typing || el.tagName === 'BUTTON' || el.tagName === 'A';
         const key = e.key.toLowerCase();
+        // letters typed in quick succession spell words; "dog" calls the dog
+        if (!typing && /^[a-z]$/.test(key)) {
+            const now = performance.now();
+            typed = (now - typedAt < 1200 ? typed.slice(-2) : '') + key;
+            typedAt = now;
+            if (typed === 'dog') dogPeek();
+        }
         if (e.code === 'Space' && !interactive) {
             e.preventDefault();
             toggle();
@@ -1883,6 +2244,8 @@
             setTimeout(() => row.classList.remove('is-hit'), 700);
         } else if (key === 't' && !typing) {
             nextEdition();
+        } else if (key === 'm' && !typing) {
+            toggleSecretShelf();
         } else if (key === 'n' && !typing) {
             nextTrack();
         } else if (key === 'a' && !typing) {
@@ -1927,6 +2290,51 @@
         barsPath = $('.bars', svg);
         bars = list.map((b) => ({ ...b, h: b.base }));
     }
+
+    // ---- the tab: the favicon spins like the disc, the title runs like the display --------------
+    // Background tabs get one tick a second (more while the music plays), so each tick moves one
+    // step instead of keeping time: the icon then turns slowly rather than jumping around.
+
+    const favicon = $('link[rel="icon"]');
+    const baseTitle = document.title;
+    let favFrames = [];
+    let tabTick = 0;
+    let tabRun = '';
+    let tabAt = 0;
+
+    // the disc in the edition's own colours, twelve steps round
+    function paintFavicon() {
+        const css = getComputedStyle(root);
+        const c = (name) => css.getPropertyValue(name).trim();
+        const [body, spot, hub, hole] = ['--metal-mid', '--disc-spot', '--disc-ink', '--paper'].map(c);
+        favFrames = Array.from({ length: 12 }, (_, i) => `data:image/svg+xml,${encodeURIComponent(
+            `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="${body}"/>`
+            + `<path d="M16 1a15 15 0 0 1 13 7.5L16 16z" fill="${spot}" transform="rotate(${i * 30} 16 16)"/>`
+            + `<circle cx="16" cy="16" r="5.5" fill="${hub}"/><circle cx="16" cy="16" r="2" fill="${hole}"/></svg>`,
+        )}`);
+        favicon.href = favFrames[tabTick % 12];
+    }
+
+    function tickTab() {
+        const still = reduceMotion.matches;
+        if (!still) {
+            tabTick++;
+            favicon.href = favFrames[tabTick % 12];
+        }
+        if (tabTick % 2 && !still) return; // the title steps at half the icon's rate
+        let title;
+        if (playing && current) {
+            const run = `♪ ${current.title} — ${current.artist} · ${baseTitle} · `;
+            if (run !== tabRun) { tabRun = run; tabAt = 0; }
+            title = still ? run.slice(2, -3) : run.slice(tabAt) + run.slice(0, tabAt);
+            tabAt = (tabAt + 1) % run.length;
+        } else {
+            tabRun = '';
+            title = !still && (tabTick >> 2) % 2 ? `${baseTitle}_` : baseTitle; // a cursor blinking once a second
+        }
+        if (document.title !== title) document.title = title;
+    }
+    setInterval(tickTab, 125);
 
     // ---- start ------------------------------------------------------------------
 
