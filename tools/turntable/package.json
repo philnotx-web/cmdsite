@@ -1,0 +1,12 @@
+{
+  "name": "stole-turntable",
+  "private": true,
+  "description": "Builds ../../turntable.js (the 3D record player) from turntable.src.js and three.js.",
+  "scripts": {
+    "build": "esbuild turntable.src.js --bundle --format=esm --minify --target=es2020 --legal-comments=none --banner:js=\"// stole.cc 3D turntable. Built from tools/turntable/turntable.src.js with three.js (MIT, https://threejs.org). Rebuild: cd tools/turntable && npm install && npm run build\" --outfile=../../turntable.js"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "three": "0.187.0"
+  }
+}
