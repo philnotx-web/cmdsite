@@ -3,7 +3,7 @@
 
     const CONFIG = {
         timeZone: 'Europe/Berlin',
-        discordId: '1492904216514265128',
+        discordId: '832332232982528000',
         // Listening stats and "Recently played" read plays scrobbled from Apple Music to Last.fm.
         // Free API key: https://www.last.fm/api/account/create
         lastfmUser: 'imsolost222',
@@ -38,7 +38,6 @@
         const m = Math.floor((s % 3600) / 60);
         return h ? `${h} h ${m} min` : `${m} min`;
     };
-    const fmtNum = (n) => new Intl.NumberFormat('en-US').format(n);
     const el = (tag, cls, text) => {
         const e = document.createElement(tag);
         if (cls) e.className = cls;
@@ -55,6 +54,18 @@
         toastEl.classList.add('on');
         clearTimeout(toastTimer);
         toastTimer = setTimeout(() => toastEl.classList.remove('on'), 1800);
+    }
+
+    // sections below the first screen fade up once, as they scroll into view
+    if ('IntersectionObserver' in window && !reduceMotion.matches) {
+        const io = new IntersectionObserver((entries) => entries.forEach((e) => {
+            if (!e.isIntersecting) return;
+            e.target.classList.add('in');
+            io.unobserve(e.target);
+        }), { rootMargin: '0px 0px -12% 0px' });
+        $$('.reveal').forEach((el) => io.observe(el));
+    } else {
+        $$('.reveal').forEach((el) => el.classList.add('in'));
     }
 
     // ---- theme ---------------------------------------------------------------------
@@ -80,7 +91,19 @@
             dark: root.dataset.theme === 'dark',
         };
     }
-    $$('.theme-pick').forEach((b) => b.addEventListener('click', () => applyTheme(b.dataset.pick, true)));
+    // a new theme opens as a circle from where it was picked (or the middle, from the keyboard)
+    function switchTheme(t, from) {
+        if (t === root.dataset.theme) return;
+        if (!document.startViewTransition || reduceMotion.matches) { applyTheme(t, true); return; }
+        const x = from ? from.left + from.width / 2 : innerWidth / 2;
+        const y = from ? from.top + from.height / 2 : innerHeight / 2;
+        root.style.setProperty('--vt-x', `${x}px`);
+        root.style.setProperty('--vt-y', `${y}px`);
+        root.style.setProperty('--vt-r', `${Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y))}px`);
+        document.startViewTransition(() => applyTheme(t, true));
+    }
+    const cycleTheme = () => switchTheme(THEMES[(THEMES.indexOf(root.dataset.theme) + 1) % THEMES.length]);
+    $$('.theme-pick').forEach((b) => b.addEventListener('click', () => switchTheme(b.dataset.pick, b.getBoundingClientRect())));
     systemDark.addEventListener('change', () => {
         if (!THEMES.includes(store.get('stole:theme'))) applyTheme(systemDark.matches ? 'dark' : 'light', false);
     });
@@ -136,7 +159,6 @@
 
     let actx; // undefined = not tried yet, null = unavailable
     let gain = null;
-    let fxGain = null; // the scratch, alongside the music
 
     function ensureAudioGraph() {
         if (actx !== undefined) return;
@@ -145,16 +167,12 @@
         if (!AC) return;
         try {
             actx = new AC();
-            fxGain = actx.createGain();
-            fxGain.gain.value = (vol / 100) ** 2;
-            fxGain.connect(actx.destination);
         } catch {
-            actx = fxGain = null;
+            actx = null;
             return;
         }
         // iOS mutes Web Audio with the ring switch unless the page says it plays media, like the music
         if (navigator.audioSession) navigator.audioSession.type = 'playback';
-        (window.requestIdleCallback || ((fn) => setTimeout(fn, 1000)))(ensureScratchVoice);
         // from file:// the browser treats audio as cross-origin and Web Audio would output silence
         if (!overHttp) return;
         try {
@@ -167,18 +185,15 @@
         }
     }
 
-    // volume goes through a GainNode when available, because iOS ignores audio.volume.
-    // While a hand is on the record the music dips, so the scratch sits on top of it like a DJ's.
+    // volume goes through a GainNode when available, because iOS ignores audio.volume
     let vol = clamp(parseInt(store.get('stole:vol') ?? '70', 10) || 0, 0, 100);
-    let duck = 1;
     volIn.value = vol;
     const paintRange = (input) => input.style.setProperty('--p', `${(input.value - input.min) / (input.max - input.min) * 100}%`);
     paintRange(volIn);
     function applyVolume() {
         const v = (vol / 100) ** 2;
-        if (gain) { audio.volume = 1; gain.gain.setTargetAtTime(v * duck, actx.currentTime, .04); }
+        if (gain) { audio.volume = 1; gain.gain.setTargetAtTime(v, actx.currentTime, .04); }
         else audio.volume = v;
-        fxGain?.gain.setTargetAtTime(v, actx.currentTime, .02);
     }
     applyVolume();
     volIn.addEventListener('input', () => {
@@ -203,6 +218,7 @@
     function setPlaying(p) {
         playing = p;
         player.classList.toggle('is-playing', p);
+        document.body.classList.toggle('is-playing-page', p);
         playBtn.setAttribute('aria-label', p ? 'Pause' : 'Play');
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = p ? 'playing' : 'paused';
         turntable?.setPlaying(p);
@@ -222,7 +238,7 @@
             seek.value = d ? Math.round((t / d) * 1000) : 0;
             paintRange(seek);
         }
-        turntable?.setProgress(d ? t / d : 0);
+        turntable?.setProgress(d ? t / d : 0, d);
     }
 
     audio.addEventListener('play', () => setPlaying(true));
@@ -245,9 +261,9 @@
         renderTime();
     });
 
-    playBtn.addEventListener('click', () => { sfx('click'); toggle(); });
-    $('#nextBtn').addEventListener('click', () => { sfx('click'); nextTrack(); });
-    $('#prevBtn').addEventListener('click', () => { sfx('click'); prevTrack(); });
+    playBtn.addEventListener('click', toggle);
+    $('#nextBtn').addEventListener('click', () => nextTrack());
+    $('#prevBtn').addEventListener('click', prevTrack);
 
     // ---- playlist: random from the first song on ------------------------------------
 
@@ -278,7 +294,11 @@
         if (art) flatLabel.src = coverUrl(t, 300);
         renderPlayedInfo();
         plRows.forEach((r) => r.classList.toggle('is-current', r._track === t));
-        revealCurrentRow();
+        // the title and artist slide in fresh for each song
+        const npText = $('.np-text');
+        npText.classList.remove('is-new');
+        void npText.offsetWidth;
+        npText.classList.add('is-new');
         if ('mediaSession' in navigator && 'MediaMetadata' in window) {
             navigator.mediaSession.metadata = new MediaMetadata({
                 title: t.title,
@@ -369,39 +389,35 @@
         on('previoustrack', prevTrack);
     }
 
-    // ---- the playlist list -----------------------------------------------------------
+    // ---- the playlist: a grid of covers, folded to a few rows until it's opened ----------
 
     const plList = $('#plList');
-    const plRows = tracks.map((t) => {
+    const plWrap = $('#plWrap');
+    const plMore = $('#plMore');
+    const plRows = tracks.map((t, i) => {
         const li = el('li');
-        const row = el('button', 'pl-row');
-        row.type = 'button';
-        row._track = t;
-        const art = el('img', 'pl-art');
+        li.style.setProperty('--i', String(i % 24));
+        const card = el('button', 'song');
+        card.type = 'button';
+        card._track = t;
+        const cover = el('span', 'song-cover');
+        const art = el('img');
         art.alt = '';
-        art.width = art.height = 40;
+        art.width = art.height = 300;
         art.loading = 'lazy';
         art.decoding = 'async';
-        if (t.art) art.src = coverUrl(t, 80);
-        const text = el('span', 'pl-text');
-        text.append(el('span', 'pl-title', t.title), el('span', 'pl-artist', t.artist));
-        row.append(el('span', 'pl-no', String(t.no)), art, text, el('span', 'pl-dur', t.ms ? fmtTime(t.ms / 1000) : ''));
-        row.setAttribute('aria-label', `${t.no}. ${t.title} by ${t.artist}`);
-        row.addEventListener('click', () => playTrack(t));
-        li.appendChild(row);
+        if (t.art) art.src = coverUrl(t, 300);
+        if (t.bg) cover.style.background = t.bg;
+        cover.append(art, el('span', 'song-play'));
+        const text = el('span', 'song-text');
+        text.append(el('span', 'song-title', t.title), el('span', 'song-artist', t.artist));
+        card.append(cover, text);
+        card.setAttribute('aria-label', `${t.no}. ${t.title} by ${t.artist}`);
+        card.addEventListener('click', () => playTrack(t));
+        li.appendChild(card);
         plList.appendChild(li);
-        return row;
+        return card;
     });
-    // keeps the song that's on in view inside the list, without moving the page
-    function revealCurrentRow() {
-        const row = plRows.find((r) => r._track === current);
-        if (!row || row.parentElement.hidden) return;
-        const li = row.parentElement;
-        const top = li.offsetTop;
-        if (top < plList.scrollTop || top + li.offsetHeight > plList.scrollTop + plList.clientHeight) {
-            plList.scrollTo({ top: top - plList.clientHeight / 2 + li.offsetHeight / 2, behavior: reduceMotion.matches ? 'auto' : 'smooth' });
-        }
-    }
 
     const plEmpty = el('li', 'pl-empty', 'No songs match');
     plEmpty.hidden = true;
@@ -412,297 +428,58 @@
     const plOpen = $('#plOpen');
     if (PLAYLIST.url) plOpen.href = PLAYLIST.url; else plOpen.hidden = true;
 
-    const fold = (s) => (s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '');
+    function measureFold() {
+        const first = plList.firstElementChild;
+        if (!first) return;
+        const gap = parseFloat(getComputedStyle(plList).rowGap) || 0;
+        plWrap.style.setProperty('--fold', `${Math.round(first.offsetHeight * 2.6 + gap * 2)}px`);
+    }
+    if ('ResizeObserver' in window) new ResizeObserver(measureFold).observe(plList);
+    measureFold();
+
+    // opening and folding the grid: its height glides between the two
+    function setOpen(open, animate = true) {
+        const from = plWrap.getBoundingClientRect().height;
+        plWrap.classList.toggle('is-open', open);
+        plMore.textContent = open ? 'Show less' : `Show all ${tracks.length} songs`;
+        plMore.setAttribute('aria-expanded', String(open));
+        if (!animate || reduceMotion.matches || !plWrap.animate) return;
+        const to = plWrap.getBoundingClientRect().height;
+        plWrap.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: 650, easing: 'cubic-bezier(.65, 0, .35, 1)' });
+    }
+    plMore.addEventListener('click', () => {
+        const open = !plWrap.classList.contains('is-open');
+        setOpen(open);
+        if (!open) plWrap.scrollIntoView({ block: 'nearest', behavior: reduceMotion.matches ? 'auto' : 'smooth' });
+    });
+    setOpen(false, false);
+
+    const fold = (s) => (s || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
     $('#plFilter').addEventListener('input', (e) => {
         const q = fold(e.target.value.trim());
         let shown = 0;
-        plRows.forEach((row) => {
-            const hit = !q || fold(`${row._track.title} ${row._track.artist}`).includes(q);
-            row.parentElement.hidden = !hit;
+        plRows.forEach((card) => {
+            const hit = !q || fold(`${card._track.title} ${card._track.artist}`).includes(q);
+            card.parentElement.hidden = !hit;
             if (hit) shown++;
         });
         plEmpty.hidden = shown > 0;
+        plWrap.classList.toggle('is-filtered', !!q); // a search shows every match, folded or not
+        plMore.hidden = !!q;
     });
-
-    // ---- the scratch: a sung "ahh" a hand plays over the music ---------------------
-    // Harmonics of a pitch curve, each weighted by how near it sits to the mouth's resonances
-    // (formants), plus breath. Scratching never touches the song itself: a stream can't seek
-    // that fast without breaking up. The read head follows the hand instead: forward plays the
-    // cut, backward plays it reversed, still is silent, and the pitch goes with the speed.
-
-    function formantVoice(rate, dur, { pitch, formants, amp, breath = 0 }) {
-        const n = Math.round(rate * dur);
-        const out = new Float32Array(n);
-        const amps = new Float32Array(64);
-        let ph = 0, lp = 0, lp2 = 0, kMax = 0, peak = 0;
-        for (let i = 0; i < n; i++) {
-            const t = i / rate;
-            const f0 = pitch(t);
-            if (i % 32 === 0) {
-                const fm = formants(t);
-                kMax = Math.min(64, Math.floor(5500 / f0));
-                for (let k = 1; k <= kMax; k++) {
-                    let h = 0;
-                    for (const [F, B, g] of fm) { const x = (k * f0 - F) / (B / 2); h += g / (1 + x * x); }
-                    amps[k - 1] = h / k;
-                }
-            }
-            ph = (ph + f0 / rate) % 1;
-            // sin(kθ) for every harmonic from one sin and one cos: sin(kθ) = 2cosθ·sin((k−1)θ) − sin((k−2)θ)
-            const c2 = 2 * Math.cos(2 * Math.PI * ph);
-            let sk = Math.sin(2 * Math.PI * ph), sk1 = 0, s = 0;
-            for (let k = 1; k <= kMax; k++) {
-                s += amps[k - 1] * sk;
-                const next = c2 * sk - sk1;
-                sk1 = sk;
-                sk = next;
-            }
-            lp += (Math.random() * 2 - 1 - lp) * .35;
-            lp2 += (lp - lp2) * .05;
-            s = (s + (lp - lp2) * breath) * amp(t);
-            out[i] = s;
-            peak = Math.max(peak, Math.abs(s));
-        }
-        for (let i = 0; i < n; i++) out[i] = (out[i] / (peak || 1)) * .9;
-        return out;
-    }
-
-    const CUT = { lead: .03, len: .4, tail: .07 };
-    function scratchSample(rate) {
-        const { lead, len, tail } = CUT;
-        return formantVoice(rate, lead + len + tail, {
-            pitch: (t) => 150 * (1 + .05 * clamp(1 - (t - lead) / len, 0, 1)) * (1 + .008 * Math.sin(2 * Math.PI * 5.5 * t)),
-            formants: () => [[730, 110, 1], [1090, 130, .6], [2440, 180, .3], [3400, 260, .15]],
-            amp: (t) => {
-                const x = t - lead;
-                return x < 0 || x > len ? 0 : Math.min(1, x / .012) * Math.min(1, (len - x) / .09) ** 1.5;
-            },
-            breath: .06,
-        });
-    }
-
-    // kept as a plain class so the same code runs in an AudioWorklet or, without one, a ScriptProcessor
-    class ScratchHead {
-        constructor(data, rate) {
-            this.data = data;
-            this.pos = 0;
-            this.speed = 0;
-            this.target = 0;
-            this.follow = 1 - Math.exp(-1 / (rate * .01)); // trails the hand by ~10 ms, so jumps glide
-        }
-
-        message(m) {
-            if (m.speed !== undefined) this.target = m.speed;
-            if (m.cue !== undefined && Math.abs(this.speed) < .02) this.pos = m.cue;
-        }
-
-        render(out) {
-            const d = this.data;
-            const n = d.length;
-            for (let i = 0; i < out.length; i++) {
-                this.speed += (this.target - this.speed) * this.follow;
-                this.pos += this.speed;
-                if (this.pos >= n) this.pos -= n;
-                else if (this.pos < 0) this.pos += n;
-                const i0 = Math.floor(this.pos);
-                const s = d[i0] + (d[(i0 + 1) % n] - d[i0]) * (this.pos - i0);
-                // like a cartridge, louder with speed: a still record is silent, a slow one quiet
-                out[i] = s * Math.min(1, Math.abs(this.speed) * 2.5);
-            }
-        }
-    }
-
-    const SCRATCH_WORKLET = `${ScratchHead}
-registerProcessor('scratch-head', class extends AudioWorkletProcessor {
-    constructor(opts) {
-        super();
-        this.head = new ScratchHead(opts.processorOptions.data, sampleRate);
-        this.port.onmessage = (e) => this.head.message(e.data);
-    }
-    process(inputs, outputs) {
-        this.head.render(outputs[0][0]);
-        return true;
-    }
-});`;
-
-    let scratchVoice; // undefined = not built yet, null = building or unavailable
-    function ensureScratchVoice() {
-        if (scratchVoice !== undefined || !actx) return;
-        scratchVoice = null;
-        const rate = actx.sampleRate;
-        const data = scratchSample(rate);
-        const cue = Math.round(rate * CUT.lead);
-        const voice = (send) => ({
-            cue: () => send({ cue }),
-            // hand speed eases off towards 4x, past which the cut turns to chirps
-            move: (speed) => send({ speed: Number.isFinite(speed) ? 4 * Math.tanh(speed / 4) : 0 }),
-        });
-        const fallback = () => {
-            try {
-                const head = new ScratchHead(data, rate);
-                const node = actx.createScriptProcessor(1024, 1, 1);
-                node.onaudioprocess = (e) => head.render(e.outputBuffer.getChannelData(0));
-                node.connect(fxGain);
-                scratchVoice = voice((m) => head.message(m));
-            } catch { /* no way to play it; scratching stays silent */ }
-        };
-        if (!actx.audioWorklet) { fallback(); return; }
-        const url = URL.createObjectURL(new Blob([SCRATCH_WORKLET], { type: 'text/javascript' }));
-        actx.audioWorklet.addModule(url).then(() => {
-            const node = new AudioWorkletNode(actx, 'scratch-head', {
-                numberOfInputs: 0, outputChannelCount: [1], processorOptions: { data },
-            });
-            node.connect(fxGain);
-            scratchVoice = voice((m) => node.port.postMessage(m));
-        }).catch(fallback).finally(() => URL.revokeObjectURL(url));
-    }
-
-    function setDuck(on) {
-        const d = on && scratchVoice ? .5 : 1;
-        if (d === duck) return;
-        duck = d;
-        applyVolume();
-    }
-
-    // ---- deck sounds: dull and creamy --------------------------------------------------------
-    // Made on the spot, so there's nothing to load: a low, soft "thock" for the keys, a muffled
-    // tock when the arm lifts or comes to rest, a thud with a little crackle when the stylus
-    // lands, and the record settling onto the felt. Everything is low-passed so nothing clicks
-    // sharply, and it all goes through the volume control.
-
-    let noiseBuf = null;
-    function noiseSource() {
-        if (!noiseBuf) {
-            const n = actx.sampleRate;
-            noiseBuf = actx.createBuffer(1, n, actx.sampleRate);
-            const d = noiseBuf.getChannelData(0);
-            for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
-        }
-        const src = actx.createBufferSource();
-        src.buffer = noiseBuf;
-        return src;
-    }
-    function envelope(param, t0, peak, attack, decay) {
-        param.setValueAtTime(.0001, t0);
-        param.exponentialRampToValueAtTime(peak, t0 + attack);
-        param.exponentialRampToValueAtTime(.0001, t0 + attack + decay);
-    }
-
-    // a pitched body that drops as it fades, a rounder overtone and a soft, filtered knock
-    function thock(t0, { f = 190, drop = .55, level = .5, len = .09, tone = 1400, knock = .12 } = {}) {
-        const out = actx.createBiquadFilter();
-        out.type = 'lowpass';
-        out.frequency.value = tone;
-        out.Q.value = .4;
-        out.connect(fxGain);
-        const end = t0 + len + .06;
-        const body = actx.createOscillator();
-        body.frequency.setValueAtTime(f, t0);
-        body.frequency.exponentialRampToValueAtTime(f * drop, t0 + len * .6);
-        const bg = actx.createGain();
-        envelope(bg.gain, t0, level, .003, len);
-        body.connect(bg).connect(out);
-        body.start(t0);
-        body.stop(end);
-        const over = actx.createOscillator();
-        over.type = 'triangle';
-        over.frequency.setValueAtTime(f * 1.5, t0);
-        over.frequency.exponentialRampToValueAtTime(f * drop * 1.5, t0 + len * .5);
-        const og = actx.createGain();
-        envelope(og.gain, t0, level * .22, .002, len * .6);
-        over.connect(og).connect(out);
-        over.start(t0);
-        over.stop(end);
-        if (knock) {
-            const n = noiseSource();
-            const nf = actx.createBiquadFilter();
-            nf.type = 'bandpass';
-            nf.frequency.value = Math.min(tone, 900);
-            nf.Q.value = .7;
-            const ng = actx.createGain();
-            envelope(ng.gain, t0, knock, .001, .028);
-            n.connect(nf).connect(ng).connect(out);
-            n.start(t0, Math.random() * .8);
-            n.stop(t0 + .07);
-        }
-    }
-
-    // a few soft pops and a breath of surface noise, as the stylus finds the groove
-    function crackle(t0, dur) {
-        const n = noiseSource();
-        const hp = actx.createBiquadFilter();
-        hp.type = 'highpass';
-        hp.frequency.value = 400;
-        const lp = actx.createBiquadFilter();
-        lp.type = 'lowpass';
-        lp.frequency.value = 2400;
-        const g = actx.createGain();
-        g.gain.setValueAtTime(.0001, t0);
-        g.gain.exponentialRampToValueAtTime(.025, t0 + .03);
-        g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
-        n.connect(hp).connect(lp).connect(g).connect(fxGain);
-        n.start(t0, Math.random() * .3);
-        n.stop(t0 + dur + .05);
-        for (let i = 0; i < 7; i++) {
-            const at = t0 + .02 + Math.random() * dur * .8;
-            thock(at, { f: 900 + Math.random() * 900, drop: .8, level: .02 + Math.random() * .03, len: .006, tone: 2600, knock: .02 });
-        }
-    }
-
-    const SOUNDS = {
-        click(t) { // a key going down, then a quieter one as it springs back
-            const f = 185 * (1 + (Math.random() - .5) * .08);
-            thock(t, { f, level: .5 });
-            thock(t + .07, { f: f * 1.18, level: .14, len: .05, knock: .05 });
-        },
-        lift(t) { thock(t, { f: 250, drop: .7, level: .2, len: .05, tone: 1500, knock: .06 }); },
-        rest(t) { thock(t, { f: 210, drop: .6, level: .2, len: .06, tone: 1100, knock: .05 }); },
-        drop(t) {
-            thock(t, { f: 92, drop: .5, level: .5, len: .16, tone: 650, knock: .18 });
-            crackle(t + .02, .7);
-        },
-        place(t) { thock(t, { f: 78, drop: .6, level: .38, len: .14, tone: 450, knock: .25 }); },
-    };
-    SOUNDS.key = SOUNDS.click;
-
-    function sfx(name) {
-        if (!SOUNDS[name]) return;
-        ensureAudioGraph();
-        if (!actx || !fxGain) return;
-        if (actx.state === 'suspended') actx.resume();
-        try { SOUNDS[name](actx.currentTime + .005); } catch { /* an old browser: stay quiet */ }
-    }
 
     // ---- the turntable ---------------------------------------------------------------
     // turntable.js is the 3D record player (three.js, bundled). Without WebGL, or if it fails
     // to load, the flat record stays and still plays and pauses on a tap.
 
     const ttHost = $('#tt');
-    const scratchHooks = {
-        onToggle: toggle,
-        onScratchStart() {
-            ensureAudioGraph();
-            if (actx && actx.state === 'suspended') actx.resume();
-            ensureScratchVoice();
-            scratchVoice?.cue();
-        },
-        onScratchMove(speed) {   // 1 = the record's own speed forward
-            scratchVoice?.move(speed);
-            setDuck(Math.abs(speed) > .05);
-        },
-        onScratchEnd() {
-            scratchVoice?.move(0);
-            setDuck(false);
-        },
-        onSound: sfx,
-    };
-    flatRecord.addEventListener('click', () => { sfx('click'); toggle(); });
+    flatRecord.addEventListener('click', toggle);
 
     import('./turntable.js')
-        .then(({ createTurntable }) => createTurntable(ttHost, { ...scratchHooks, colors: readTurntableColors(), reduceMotion }))
+        .then(({ createTurntable }) => createTurntable(ttHost, { onToggle: toggle, colors: readTurntableColors(), reduceMotion }))
         .then((tt) => {
             turntable = tt;
-            if (current) { tt.setTrack(current, false); renderPlayedInfo(); }
+            if (current) { tt.setTrack(current, false); renderPlayedInfo(); renderTime(); }
             tt.setPlaying(playing);
             flatRecord.classList.remove('is-spinning');
             ttHost.classList.add('is-3d');
@@ -719,7 +496,6 @@ registerProcessor('scratch-head', class extends AudioWorkletProcessor {
         const key = e.key.toLowerCase();
         if (e.code === 'Space' && !interactive) {
             e.preventDefault();
-            sfx('click');
             toggle();
         } else if (/^[1-3]$/.test(e.key) && !typing) {
             const row = $(`.link[data-key="${e.key}"]`);
@@ -728,11 +504,11 @@ registerProcessor('scratch-head', class extends AudioWorkletProcessor {
             row.classList.add('is-hit');
             setTimeout(() => row.classList.remove('is-hit'), 700);
         } else if (key === 'n' && !typing) {
-            sfx('click');
             nextTrack();
         } else if (key === 'p' && !typing) {
-            sfx('click');
             prevTrack();
+        } else if (key === 'm' && !typing) {
+            cycleTheme();
         }
     });
 
@@ -854,7 +630,7 @@ registerProcessor('scratch-head', class extends AudioWorkletProcessor {
     pollDiscord();
     setInterval(pollDiscord, 20000);
 
-    // ---- Last.fm: listening stats and recently played -----------------------------------
+    // ---- Last.fm: what's been on lately -----------------------------------------------------
     // Apple Music keeps listening history to itself, so plays get scrobbled to Last.fm (a
     // scrobbler app does that) and are read back from there. Covers and Apple Music links come
     // from the playlist when the song is in it, otherwise from Apple's search.
@@ -862,13 +638,6 @@ registerProcessor('scratch-head', class extends AudioWorkletProcessor {
     const stats = $('#stats');
     const statsNote = $('#statsNote');
     const LASTFM_BLANK = '2a96cbd8b46e442fc41c2b86b821562f'; // Last.fm's grey star placeholder
-    const PERIODS = {
-        '7day': { days: 7, label: 'last 7 days' },
-        '1month': { days: 30, label: 'last 30 days' },
-        '12month': { days: 365, label: 'last 12 months' },
-        overall: { days: 0, label: 'all time' },
-    };
-    let period = PERIODS[store.get('stole:period')] ? store.get('stole:period') : '1month';
     const norm = (s) => fold(s).replace(/\s*[([].*?[)\]]/g, '').replace(/\s+(feat|ft)\.?\s.*$/, '').replace(/[^a-z0-9]+/g, ' ').trim();
     const leadArtist = (s) => norm((s || '').split(/,|&|\s+x\s+|\s+(?:feat|ft)\.?\s/i)[0]);
     const songKey = (title, artist) => `${leadArtist(artist)}|${norm(title)}`;
@@ -950,18 +719,8 @@ registerProcessor('scratch-head', class extends AudioWorkletProcessor {
         return li;
     }
 
-    // top artists: ranked bars, one hue, the value at the tip and in a tooltip on hover
-    const tip = el('div', 'tip');
-    document.body.appendChild(tip);
-    function showTip(e, text) {
-        tip.textContent = text;
-        tip.style.left = `${e.clientX}px`;
-        tip.style.top = `${e.clientY}px`;
-        tip.classList.add('on');
-    }
-    const hideTip = () => tip.classList.remove('on');
-
-    function renderTopArtists(list, total) {
+    // top artists of the month: ranked, the bar shows how they compare, no numbers
+    function renderTopArtists(list) {
         const ol = $('#topArtists');
         ol.textContent = '';
         const max = Math.max(1, ...list.map((a) => a.plays));
@@ -976,20 +735,17 @@ registerProcessor('scratch-head', class extends AudioWorkletProcessor {
             const fill = el('span', 'fill');
             fill.style.setProperty('--w', `${(a.plays / max) * 100}%`);
             bar.appendChild(fill);
-            li.append(el('span', 'no', String(i + 1)), name, el('span', 'v', fmtNum(a.plays)), bar);
-            const share = total ? ` · ${Math.round((a.plays / total) * 100)}% of plays` : '';
-            li.addEventListener('pointermove', (e) => showTip(e, `${a.name} · ${fmtNum(a.plays)} ${a.plays === 1 ? 'play' : 'plays'}${share}`));
-            li.addEventListener('pointerleave', hideTip);
+            li.append(el('span', 'no', String(i + 1)), name, bar);
             ol.appendChild(li);
         });
-        if (!list.length) ol.appendChild(el('li', 'row-sub', 'No plays in this period'));
+        if (!list.length) ol.appendChild(el('li', 'row-sub', 'Nothing this month yet'));
     }
 
     function renderTopTracks(list) {
         const ol = $('#topTracks');
         ol.textContent = '';
-        list.forEach((t) => ol.appendChild(songRow(t, `${fmtNum(t.plays)}×`)));
-        if (!list.length) ol.appendChild(el('li', 'row-sub', 'No plays in this period'));
+        list.forEach((t) => ol.appendChild(songRow(t, '')));
+        if (!list.length) ol.appendChild(el('li', 'row-sub', 'Nothing this month yet'));
     }
 
     let recentSig = '';
@@ -1014,58 +770,18 @@ registerProcessor('scratch-head', class extends AudioWorkletProcessor {
         statsNote.textContent = `${why} This note only shows while testing locally; on the live site this section stays hidden until Last.fm answers.`;
     }
 
-    const periodBtns = $$('#period button');
-    function paintPeriod() {
-        periodBtns.forEach((b) => b.setAttribute('aria-checked', String(b.dataset.period === period)));
-        const label = PERIODS[period].label;
-        $('#tileScrobblesLabel').textContent = `Scrobbles, ${label}`;
-        $('#tileArtistsLabel').textContent = `Artists, ${label}`;
-    }
-    periodBtns.forEach((b) => b.addEventListener('click', () => {
-        if (b.dataset.period === period) return;
-        period = b.dataset.period;
-        store.set('stole:period', period);
-        paintPeriod();
-        loadTops();
-    }));
-    paintPeriod();
-
-    let topsTurn = 0;
     async function loadTops() {
-        const turn = ++topsTurn;
-        const p = period;
-        const from = PERIODS[p].days ? Math.floor(Date.now() / 1000 - PERIODS[p].days * 86400) : 0;
         try {
-            const [artists, top, count] = await Promise.all([
-                lastfm('user.gettopartists', { period: p, limit: 8 }),
-                lastfm('user.gettoptracks', { period: p, limit: 6 }),
-                from ? lastfm('user.getrecenttracks', { from, limit: 1 }) : null,
+            const [artists, top] = await Promise.all([
+                lastfm('user.gettopartists', { period: '1month', limit: 6 }),
+                lastfm('user.gettoptracks', { period: '1month', limit: 5 }),
             ]);
-            if (turn !== topsTurn) return;
-            const artistList = [].concat(artists.topartists?.artist || []).map((a) => ({ name: a.name, plays: +a.playcount || 0, url: a.url }));
-            const trackList = [].concat(top.toptracks?.track || []).map((t) => ({
-                title: t.name, artist: t.artist?.name || '', plays: +t.playcount || 0, img: lastfmImg(t.image),
-            }));
-            const scrobbles = count ? +count.recenttracks?.['@attr']?.total || 0 : totalScrobbles;
-            $('#tileScrobbles').textContent = scrobbles != null ? fmtNum(scrobbles) : '–';
-            $('#tileArtists').textContent = fmtNum(+artists.topartists?.['@attr']?.total || artistList.length);
-            renderTopArtists(artistList, scrobbles);
-            renderTopTracks(trackList);
+            renderTopArtists([].concat(artists.topartists?.artist || []).map((a) => ({ name: a.name, plays: +a.playcount || 0, url: a.url })));
+            renderTopTracks([].concat(top.toptracks?.track || []).map((t) => ({ title: t.name, artist: t.artist?.name || '', img: lastfmImg(t.image) })));
             stats.hidden = false;
         } catch (err) {
-            if (turn === topsTurn && stats.hidden) statsUnavailable(`Last.fm couldn’t be read (${err.message}).`);
+            if (stats.hidden) statsUnavailable(`Last.fm couldn’t be read (${err.message}).`);
         }
-    }
-
-    let totalScrobbles = null;
-    async function loadInfo() {
-        try {
-            const info = await lastfm('user.getinfo');
-            totalScrobbles = +info.user?.playcount || 0;
-            $('#tileTotal').textContent = fmtNum(totalScrobbles);
-            if (period === 'overall') $('#tileScrobbles').textContent = fmtNum(totalScrobbles);
-            if (info.user?.url) $('#lfmLink').href = info.user.url;
-        } catch { /* the tile keeps its dash */ }
     }
 
     // ---- when each song was last played: the newest 1,000 plays from Last.fm ----------------
@@ -1135,6 +851,7 @@ registerProcessor('scratch-head', class extends AudioWorkletProcessor {
                 img: lastfmImg(t.image),
             }));
             renderRecent(list);
+            stats.hidden = false;
             nowPlayingKey = '';
             list.forEach((t) => notePlay(t.title, t.artist, t.at || Date.now(), t.now));
             renderPlayedInfo();
@@ -1142,7 +859,7 @@ registerProcessor('scratch-head', class extends AudioWorkletProcessor {
     }
 
     if (CONFIG.lastfmUser && CONFIG.lastfmKey) {
-        loadInfo().then(loadTops);
+        loadTops();
         pollRecent();
         loadHistory();
         setInterval(pollRecent, 60000);

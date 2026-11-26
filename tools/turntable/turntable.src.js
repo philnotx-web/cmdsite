@@ -4,16 +4,17 @@
 //     cd tools/turntable && npm install && npm run build
 //
 // Units are centimetres, y up, the plinth's top at y = 0 and the viewer towards +z.
-// The page drives it through the object createTurntable() returns; it calls back for
-// plays, pauses and scratches. It only renders while something moves.
+// The page drives it through the object createTurntable() returns; it calls back when the
+// record or the start key is tapped. Every movement is a keyframed tween (fixed duration,
+// easing curve), and it only renders while something moves.
 
 import {
     WebGLRenderer, Scene, PerspectiveCamera, Group, Mesh, Color, Vector2, Vector3, Plane, Raycaster,
     MeshPhysicalMaterial, MeshStandardMaterial, MeshBasicMaterial,
-    CylinderGeometry, CircleGeometry, RingGeometry, BoxGeometry, PlaneGeometry, SphereGeometry, ExtrudeGeometry, Shape,
-    DirectionalLight, PMREMGenerator, CanvasTexture, DataTexture,
+    CylinderGeometry, CircleGeometry, BoxGeometry, PlaneGeometry, SphereGeometry, ExtrudeGeometry, Shape,
+    DirectionalLight, PMREMGenerator, CanvasTexture, DataTexture, Euler,
     SRGBColorSpace, NeutralToneMapping, PCFShadowMap, RGBAFormat, LinearFilter, LinearMipmapLinearFilter,
-    RepeatWrapping, DoubleSide,
+    RepeatWrapping,
 } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
@@ -26,19 +27,29 @@ const PLINTH = { w: 46, d: 35, h: 4.2, r: 2.4, bevel: .45 };
 const C = new Vector3(-6, 0, .3);       // platter centre
 const PLATTER = { r: 15.9, y0: .25, h: 1.7 };
 const MAT_TOP = PLATTER.y0 + PLATTER.h + .2;
-const RECORD = { r: 15, label: 5, h: .2 };
+const RECORD = { r: 15, h: .2 };
 const RECORD_TOP = MAT_TOP + RECORD.h;
 const GROOVES = { lead: 14.6, start: 14.45, end: 6.5, runout: 6.1 };
 const PIVOT = new Vector3(15.6, 0, -10.2); // tone arm
 const ARM = { len: 22.8, y: RECORD_TOP + 1.5, lift: -.055, down: 0 };
 
-const ease = (x) => 1 - (1 - x) ** 3;
+// easing curves for the keyframes
+const EASE = {
+    inOut: (x) => (x < .5 ? 4 * x ** 3 : 1 - (-2 * x + 2) ** 3 / 2),
+    out: (x) => 1 - (1 - x) ** 3,
+    outQuint: (x) => 1 - (1 - x) ** 5,
+    in: (x) => x ** 3,
+    inOutSine: (x) => -(Math.cos(Math.PI * x) - 1) / 2,
+};
 const smooth = (cur, target, dt, tau) => cur + (target - cur) * (1 - Math.exp(-dt / tau));
-const wrapDeg = (d) => ((d + 540) % 360) - 180;
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+// how far the deck turns when dragged (radians)
+const TURN = { yaw: .42, tiltUp: .16, tiltDown: -.1 };
 
 export function createTurntable(host, opts) {
     const canvas = document.createElement('canvas');
-    canvas.setAttribute('aria-label', 'Record player. Tap the record to play or pause, drag it to scratch.');
+    canvas.setAttribute('aria-label', 'Record player. Tap the record or the start key to play or pause, drag to turn it.');
     canvas.setAttribute('role', 'img');
     host.appendChild(canvas);
 
@@ -268,16 +279,23 @@ export function createTurntable(host, opts) {
         t.needsUpdate = true;
         return t;
     })();
+    // a picture disc: the cover printed across the whole record, under clear, grooved vinyl
+    const DISC_PX = 2048;
+    const discCanvas = document.createElement('canvas');
+    discCanvas.width = discCanvas.height = DISC_PX;
+    const discTex = new CanvasTexture(discCanvas);
+    discTex.colorSpace = SRGBColorSpace;
+    discTex.anisotropy = 8;
     const vinylTop = new MeshPhysicalMaterial({
-        color: 0x0a0a0b, roughness: 1, roughnessMap: roughTex, metalness: 0,
-        anisotropy: .9, anisotropyMap: anisoTex,
-        clearcoat: .25, clearcoatRoughness: .3, specularIntensity: 1,
+        color: 0xffffff, map: discTex, roughness: .62, roughnessMap: roughTex, metalness: 0,
+        anisotropy: .7, anisotropyMap: anisoTex,
+        clearcoat: .55, clearcoatRoughness: .18, specularIntensity: .8,
     });
 
     const record = new Group();
     record.position.y = MAT_TOP;
     spinner.add(record);
-    const recordFace = new Mesh(new RingGeometry(RECORD.label - .01, RECORD.r, 256, 1), vinylTop);
+    const recordFace = new Mesh(new CircleGeometry(RECORD.r, 256), vinylTop);
     recordFace.rotation.x = -Math.PI / 2;
     recordFace.position.y = RECORD.h;
     recordFace.receiveShadow = true;
@@ -286,13 +304,7 @@ export function createTurntable(host, opts) {
     recordEdge.position.y = RECORD.h / 2;
     recordEdge.castShadow = true;
     record.add(recordEdge);
-    const labelMat = new MeshStandardMaterial({ color: 0xffffff, roughness: .75 });
-    const label = new Mesh(new CircleGeometry(RECORD.label, 96), labelMat);
-    label.rotation.x = -Math.PI / 2;
-    label.position.y = RECORD.h + .004;
-    label.receiveShadow = true;
-    record.add(label);
-    const recordMats = [vinylTop, M.vinylEdge, labelMat];
+    const recordMats = [vinylTop, M.vinylEdge];
 
     // ---- tone arm -------------------------------------------------------------------
 
@@ -390,11 +402,11 @@ export function createTurntable(host, opts) {
             g.textAlign = 'center';
             g.textBaseline = 'middle';
             g.fillStyle = ink.soft;
-            g.font = `600 ${Math.round(h * .19)}px Geist, system-ui, sans-serif`;
+            g.font = `600 ${Math.round(h * .19)}px Inter, system-ui, sans-serif`;
             if ('letterSpacing' in g) g.letterSpacing = '1px';
             g.fillText(k.caption, w / 2, h * .27);
             g.fillStyle = ink.strong;
-            g.font = `650 ${Math.round(h * .42)}px Geist, system-ui, sans-serif`;
+            g.font = `650 ${Math.round(h * .42)}px Inter, system-ui, sans-serif`;
             if ('letterSpacing' in g) g.letterSpacing = '0px';
             g.fillText(k.value(), w / 2, h * .64);
         });
@@ -439,7 +451,7 @@ export function createTurntable(host, opts) {
     function textDecal(text, w, h, { size, weight, align = 'center' }) {
         return decal(w, h, (g, cw, ch, ink) => {
             g.fillStyle = ink.soft;
-            g.font = `${weight} ${size * 1.5}px Geist, system-ui, sans-serif`;
+            g.font = `${weight} ${size * 1.5}px Inter, system-ui, sans-serif`;
             g.textAlign = align;
             g.textBaseline = 'middle';
             if ('letterSpacing' in g) g.letterSpacing = '3px';
@@ -468,17 +480,10 @@ export function createTurntable(host, opts) {
     rim.position.set(34, 18, -30);
     scene.add(rim);
 
-    // ---- label: printed for each song from its cover and colours ------------------------
 
-    const LABEL_PX = 1024;
-    const labelCanvas = document.createElement('canvas');
-    labelCanvas.width = labelCanvas.height = LABEL_PX;
-    const labelTex = new CanvasTexture(labelCanvas);
-    labelTex.colorSpace = SRGBColorSpace;
-    labelTex.anisotropy = 8;
-    labelMat.map = labelTex;
+    // ---- the picture disc: printed for each song from its cover ---------------------------
+
     const covers = new Map();
-
     function loadCover(url) {
         if (!url) return Promise.resolve(null);
         if (!covers.has(url)) {
@@ -494,121 +499,131 @@ export function createTurntable(host, opts) {
         return covers.get(url);
     }
 
-    // text round the label: along the top, or along the bottom still reading left to right
-    function arcText(g, text, radius, { size, weight, color, bottom }) {
+    // small print running along the rim, centred at the top
+    function rimText(g, text, radius, px, color) {
         g.save();
         g.fillStyle = color;
-        g.textBaseline = 'middle';
+        g.font = `600 ${px}px Inter, system-ui, sans-serif`;
         g.textAlign = 'center';
-        let px = size;
-        let str = text;
-        const room = radius * Math.PI * .8;
-        const width = () => {
-            g.font = `${weight} ${px}px Geist, system-ui, sans-serif`;
-            return [...str].reduce((w, ch) => w + g.measureText(ch).width + px * .14, 0);
-        };
-        while (width() > room && px > size * .64) px -= 2;
-        while (width() > room && str.length > 4) str = `${str.slice(0, -2).trimEnd()}…`;
-        const spacing = px * .14;
-        const total = width() - spacing;
-        const dir = bottom ? -1 : 1;
-        let a = -dir * total / radius / 2;
-        g.translate(LABEL_PX / 2, LABEL_PX / 2);
-        for (const ch of str) {
-            const w = g.measureText(ch).width;
+        g.textBaseline = 'middle';
+        const spacing = px * .18;
+        const chars = [...text];
+        const widths = chars.map((ch) => g.measureText(ch).width);
+        const total = widths.reduce((a, w) => a + w + spacing, -spacing);
+        let a = -total / radius / 2;
+        g.translate(DISC_PX / 2, DISC_PX / 2);
+        chars.forEach((ch, i) => {
             g.save();
-            g.rotate(a + dir * (w / 2) / radius);
-            g.translate(0, bottom ? radius : -radius);
+            g.rotate(a + widths[i] / 2 / radius);
+            g.translate(0, -radius);
             g.fillText(ch, 0, 0);
             g.restore();
-            a += dir * (w + spacing) / radius;
-        }
+            a += (widths[i] + spacing) / radius;
+        });
         g.restore();
     }
 
-    function paintLabel(t, img) {
-        const g = labelCanvas.getContext('2d');
-        const R = LABEL_PX / 2;
-        const bg = t?.bg || '#e8e8e8';
-        const fg = t?.fg || '#111111';
-        g.clearRect(0, 0, LABEL_PX, LABEL_PX);
-        g.fillStyle = bg;
+    const cmPx = DISC_PX / 2 / RECORD.r; // canvas pixels per centimetre of record
+
+    function paintDisc(g, t, img) {
+        const N = DISC_PX;
+        const R = N / 2;
+        g.clearRect(0, 0, N, N);
+        g.save();
         g.beginPath();
         g.arc(R, R, R, 0, TAU);
-        g.fill();
-        const inner = R * .7;
-        if (img) {
-            g.save();
+        g.clip();
+        g.fillStyle = t?.bg || '#1b1b1d';
+        g.fillRect(0, 0, N, N);
+        if (img) g.drawImage(img, 0, 0, N, N);
+        else if (t) {
+            g.fillStyle = t.accent || t.fg || '#888';
+            g.globalAlpha = .5;
             g.beginPath();
-            g.arc(R, R, inner, 0, TAU);
-            g.clip();
-            g.drawImage(img, R - inner, R - inner, inner * 2, inner * 2);
-            g.restore();
-            g.strokeStyle = fg;
-            g.globalAlpha = .18;
-            g.lineWidth = 3;
-            g.beginPath();
-            g.arc(R, R, inner + 2, 0, TAU);
-            g.stroke();
+            g.arc(R, R, R * .62, 0, TAU);
+            g.fill();
             g.globalAlpha = 1;
         }
-        if (t) {
-            const ring = (R + inner) / 2 + 2;
-            arcText(g, (t.title || '').toUpperCase(), ring, { size: 50, weight: 650, color: fg });
-            arcText(g, `${(t.artist || '').toUpperCase()}  ·  33⅓`, ring, { size: 38, weight: 500, color: fg, bottom: true });
-            if (!img) {
-                g.fillStyle = t.accent || fg;
-                g.globalAlpha = .9;
-                g.beginPath();
-                g.arc(R, R, inner * .62, 0, TAU);
-                g.fill();
-                g.globalAlpha = 1;
-            }
+        // grooves pressed over the print: fine rings, with the gaps between songs a little deeper
+        for (let r = GROOVES.runout * cmPx; r < GROOVES.lead * cmPx; r += 3) {
+            g.strokeStyle = (r / 3) % 2 < 1 ? 'rgba(0,0,0,.07)' : 'rgba(255,255,255,.035)';
+            g.lineWidth = 1.4;
+            g.beginPath();
+            g.arc(R, R, r, 0, TAU);
+            g.stroke();
         }
-        // the spindle hole, and a faint pressing ring round it
-        g.fillStyle = 'rgba(0,0,0,.08)';
+        for (const cm of [12.1, 9.4]) {
+            g.strokeStyle = 'rgba(0,0,0,.22)';
+            g.lineWidth = 3;
+            g.beginPath();
+            g.arc(R, R, cm * cmPx, 0, TAU);
+            g.stroke();
+        }
+        // the clear rim, darker where the print stops
+        const rim = g.createRadialGradient(R, R, GROOVES.lead * cmPx, R, R, R);
+        rim.addColorStop(0, 'rgba(8,8,10,0)');
+        rim.addColorStop(.35, 'rgba(8,8,10,.55)');
+        rim.addColorStop(1, 'rgba(8,8,10,.85)');
+        g.fillStyle = rim;
+        g.fillRect(0, 0, N, N);
+        g.restore();
+        if (t) rimText(g, `${t.title}  ·  ${t.artist}  ·  33⅓`.toUpperCase(), (GROOVES.lead + .2) * cmPx, 22, 'rgba(255,255,255,.62)');
+        // the centre: a thin pressing ring and the spindle hole
+        g.strokeStyle = 'rgba(255,255,255,.22)';
+        g.lineWidth = 2;
         g.beginPath();
-        g.arc(R, R, R * .19, 0, TAU);
-        g.fill();
-        g.fillStyle = '#0d0d0e';
+        g.arc(R, R, 1.1 * cmPx, 0, TAU);
+        g.stroke();
+        g.fillStyle = '#0c0c0d';
         g.beginPath();
-        g.arc(R, R, R * .075, 0, TAU);
+        g.arc(R, R, .4 * cmPx, 0, TAU);
         g.fill();
-        labelTex.needsUpdate = true;
     }
 
-    let labelTurn = 0;
-    async function printLabel(t) {
-        const turn = ++labelTurn;
-        const url = t?.art ? t.art.replace(/\/\d+x\d+bb\./, '/600x600bb.') : '';
-        try { await document.fonts?.load('600 40px Geist'); } catch { /* system font then */ }
+    // printed off to the side first, so the record on the deck doesn't change while it's still showing
+    const nextCanvas = document.createElement('canvas');
+    nextCanvas.width = nextCanvas.height = DISC_PX;
+    let printTurn = 0;
+    async function printDisc(t) {
+        const turn = ++printTurn;
+        const url = t?.art ? t.art.replace(/\/\d+x\d+bb\./, '/1200x1200bb.') : '';
+        try { await document.fonts?.load('600 22px Inter'); } catch { /* system font then */ }
         const img = await loadCover(url);
-        if (turn !== labelTurn) return false;
-        paintLabel(t, img);
+        if (turn !== printTurn) return false;
+        paintDisc(nextCanvas.getContext('2d'), t, img);
         return true;
     }
+    function showPrinted() {
+        const g = discCanvas.getContext('2d');
+        g.clearRect(0, 0, DISC_PX, DISC_PX);
+        g.drawImage(nextCanvas, 0, 0);
+        discTex.needsUpdate = true;
+    }
 
-    // ---- camera: framed so the whole deck fits, from the front and a little above -------
+    // ---- camera: the whole deck in view, also when it's turned as far as it goes -----------
 
     const target = new Vector3(0, -1.6, 1.2);
     const view = new Vector3(Math.sin(.16) * Math.cos(.98), Math.sin(.98), Math.cos(.16) * Math.cos(.98)).normalize();
     const corners = [];
     for (const x of [-PLINTH.w / 2, PLINTH.w / 2]) for (const y of [-PLINTH.h - 1, ARM.y + 1]) for (const z of [-PLINTH.d / 2, PLINTH.d / 2]) corners.push(new Vector3(x, y, z));
+    const poses = [];
+    for (const yawP of [-TURN.yaw, 0, TURN.yaw]) for (const tiltP of [TURN.tiltDown, 0, TURN.tiltUp]) poses.push(new Euler(tiltP, yawP, 0));
+    const framingPoints = poses.flatMap((e) => corners.map((c) => c.clone().applyEuler(e)));
     function frame() {
         const w = host.clientWidth || 1;
         const h = host.clientHeight || 1;
         renderer.setSize(w, h, false);
         camera.aspect = w / h;
-        let lo = 40, hi = 400;
+        let lo = 40, hi = 500;
         for (let i = 0; i < 24; i++) {
             const dist = (lo + hi) / 2;
             camera.position.copy(target).addScaledVector(view, dist);
             camera.lookAt(target);
             camera.updateProjectionMatrix();
             camera.updateMatrixWorld();
-            const fits = corners.every((c) => {
+            const fits = framingPoints.every((c) => {
                 const p = c.clone().project(camera);
-                return Math.abs(p.x) < .96 && Math.abs(p.y) < .95;
+                return Math.abs(p.x) < .98 && Math.abs(p.y) < .97;
             });
             if (fits) hi = dist; else lo = dist;
         }
@@ -618,25 +633,52 @@ export function createTurntable(host, opts) {
         wake();
     }
 
+    // ---- keyframes ---------------------------------------------------------------------
+    // Every move is a tween: a fixed duration on an easing curve, chained into sequences, so it
+    // lands exactly where it should, the same way every time.
+
+    const motion = () => !opts.reduceMotion?.matches;
+    const tweens = new Set();
+    function tween(ms, ease, apply) {
+        return new Promise((done) => {
+            tweens.add({ t0: performance.now(), ms: motion() ? ms : 1, ease, apply, done });
+            wake();
+        });
+    }
+    function stepTweens(now) {
+        for (const tw of tweens) {
+            const k = Math.min(1, (now - tw.t0) / tw.ms);
+            tw.apply(tw.ease(k), k);
+            if (k >= 1) { tweens.delete(tw); tw.done(); }
+        }
+        return tweens.size > 0;
+    }
+    const lerp = (a, b, k) => a + (b - a) * k;
+
     // ---- state ------------------------------------------------------------------------
 
     let playing = false;
-    let progress = 0;
-    let angle = 0;         // record, degrees clockwise from above
-    let vel = 0;           // deg/s
+    let prog = { p: 0, at: performance.now(), dur: 30 };   // where the song is, and since when
+    let angle = 0;          // record, degrees clockwise from above
+    let vel = 0;            // deg/s
+    let spin = { from: 0, to: 0, t0: 0, ms: 1 };
     let yaw = 0;
     let pitch = ARM.down;
-    let armStage = 'rest';
-    let swap = null;       // record change in progress
-    let lastPitchGoal = ARM.down;
-    let landing = false;   // the arm is on its way down: a sound when it gets there
-    let keyAt = -1e9;      // when the start/stop key was last pressed
-    let scratch = null;
-    let tiltX = 0, tiltY = 0, tiltTX = 0, tiltTY = 0;
+    let armMode = 'rest';   // rest | moving | tracking
+    let armIntent = 'rest'; // where the current sequence is taking it
+    let armJob = 0;
+    let swapping = false;
+    let pendingTrack;       // a song picked while the record was still being changed
+    let shownTrack = null;
+    let turn = { yaw: 0, tilt: 0, yawT: 0, tiltT: 0 }; // how the deck is turned, and where it's headed
+    let drag = null;
+    let homeTimer = 0;
     let visible = true;
     let rafId = 0;
+    let needsFrame = false;
     let last = performance.now();
-    const motion = () => !opts.reduceMotion?.matches;
+
+    const progressNow = () => Math.min(1, prog.p + (playing && prog.dur ? (performance.now() - prog.at) / 1000 / prog.dur : 0));
 
     // yaw that puts the stylus at radius r from the spindle
     function yawFor(r) {
@@ -649,137 +691,115 @@ export function createTurntable(host, opts) {
         }
         return (lo + hi) / 2;
     }
-    const grooveYaw = (p) => yawFor(GROOVES.start - (GROOVES.start - GROOVES.end) * Math.min(1, Math.max(0, p)));
+    const grooveYaw = () => yawFor(GROOVES.start - (GROOVES.start - GROOVES.end) * progressNow());
 
-    function armWanted() {
-        if (swap) return null;
-        if (playing || progress > .002) return grooveYaw(progress);
-        return null;
+    // ---- tone arm: lift, swing, lower --------------------------------------------------------
+
+    async function armSequence(intent) {
+        const job = ++armJob;
+        armIntent = intent;
+        armMode = 'moving';
+        const live = () => job === armJob;
+        const swingTo = async (goal) => {
+            const from = yaw;
+            const ms = 520 + Math.abs(goal() - from) * 1100;
+            await tween(ms, EASE.inOut, (k) => { yaw = lerp(from, goal(), k); });
+        };
+        const p0 = pitch;
+        if (Math.abs(pitch - ARM.lift) > .001) await tween(260, EASE.out, (k) => { pitch = lerp(p0, ARM.lift, k); });
+        if (!live()) return;
+        await swingTo(intent === 'groove' ? grooveYaw : () => 0);
+        if (!live()) return;
+        await tween(intent === 'groove' ? 380 : 300, EASE.inOutSine, (k) => { pitch = lerp(ARM.lift, ARM.down, k); });
+        if (!live()) return;
+        armMode = intent === 'groove' ? 'tracking' : 'rest';
     }
 
-    // The arm lifts, swings and lowers like a cueing lever would: off the rest onto the
-    // groove when music starts, along the groove as it plays, and home when it's done.
-    // armStage: 'rest' | 'cue' (lifting, swinging, lowering) | 'tracking' (stylus in the groove)
-    function stepArm(dt) {
-        const want = armWanted();
-        let yawGoal, pitchGoal;
-        if (want === null) {
-            armStage = 'rest';
-            if (Math.abs(yaw) > .01) {
-                pitch = smooth(pitch, ARM.lift, dt, .12);
-                if (pitch < ARM.lift * .7) yaw = smooth(yaw, 0, dt, .3);
-                yawGoal = 0; pitchGoal = ARM.lift;
-            } else {
-                yaw = smooth(yaw, 0, dt, .1);
-                pitch = smooth(pitch, ARM.down, dt, .14);
-                yawGoal = 0; pitchGoal = ARM.down;
-            }
-        } else if (armStage === 'tracking') {
-            yaw = smooth(yaw, want, dt, .25);
-            pitch = smooth(pitch, ARM.down, dt, .1);
-            if (Math.abs(yaw - want) > .05) armStage = 'cue'; // a seek: lift it and move
-            yawGoal = want; pitchGoal = ARM.down;
-        } else {
-            armStage = 'cue';
-            // the groove moves inwards while the music plays, so "over it" has to allow for
-            // the arm trailing a little behind; closer than this it lowers and keeps following
-            if (Math.abs(yaw - want) > .02) {
-                pitch = smooth(pitch, ARM.lift, dt, .12);
-                if (pitch < ARM.lift * .7) yaw = smooth(yaw, want, dt, .3);
-                yawGoal = want; pitchGoal = ARM.lift;
-            } else {
-                yaw = smooth(yaw, want, dt, .1);
-                pitch = smooth(pitch, ARM.down, dt, .16);
-                if (Math.abs(pitch - ARM.down) < .001) armStage = 'tracking';
-                yawGoal = want; pitchGoal = ARM.down;
-            }
+    // decides where the arm belongs: on the groove while a song is on, otherwise on its rest
+    function placeArm() {
+        const want = !swapping && (playing || prog.p > .002) ? 'groove' : 'rest';
+        if (want === armIntent && armMode !== 'tracking') return; // already on its way
+        if (want === 'groove' && armMode === 'tracking') {
+            if (Math.abs(grooveYaw() - yaw) > .04) armSequence('groove'); // a seek: lift it and move
+            return;
         }
-        // sounds: the arm leaving the groove or the rest, and the stylus (or the arm) landing
-        if (pitchGoal !== lastPitchGoal) {
-            if (pitchGoal === ARM.lift) { opts.onSound?.('lift'); landing = false; } else landing = true;
-            lastPitchGoal = pitchGoal;
-        }
-        if (landing && Math.abs(pitch - ARM.down) < .004) {
-            landing = false;
-            opts.onSound?.(want === null ? 'rest' : 'drop');
-        }
-        armYaw.rotation.y = yaw;
-        armPitch.rotation.x = pitch;
-        return armStage === 'cue' || Math.abs(yaw - yawGoal) > .0005 || Math.abs(pitch - pitchGoal) > .0005;
+        if (want !== armIntent || armMode === 'tracking') armSequence(want);
     }
 
-    function stepSwap(now) {
-        if (!swap) return false;
-        const s = swap;
-        if (s.stage === 'arm') {
-            if (Math.abs(yaw) < .02 || now - s.t0 > 1400) { s.stage = 'out'; s.t0 = now; recordMats.forEach((m) => { m.transparent = true; }); }
-        }
-        if (s.stage === 'out') {
-            const k = Math.min(1, (now - s.t0) / 380);
-            record.position.y = MAT_TOP + ease(k) * 7;
-            record.position.x = -ease(k) * 4;
-            recordMats.forEach((m) => { m.opacity = 1 - k; });
-            if (k >= 1 && s.ready) { s.stage = 'in'; s.t0 = now; }
-        }
-        if (s.stage === 'in') {
-            const k = Math.min(1, (now - s.t0) / 560);
-            const e = ease(k);
-            record.position.y = MAT_TOP + (1 - e) * 7;
-            record.position.x = (1 - e) * 4;
-            recordMats.forEach((m) => { m.opacity = Math.min(1, k * 1.6); });
-            if (k >= 1) {
-                record.position.set(0, MAT_TOP, 0);
-                recordMats.forEach((m) => { m.transparent = false; m.opacity = 1; });
-                swap = null;
-                opts.onSound?.('place');
-            }
-        }
-        return true;
+    // ---- the motor --------------------------------------------------------------------------
+
+    function setMotor(on) {
+        spin = { from: vel, to: on && motion() ? SPIN : 0, t0: performance.now(), ms: on ? 1100 : 1700 };
     }
+
+    // ---- changing the record ------------------------------------------------------------------
+
+    const setRecordOpacity = (o) => recordMats.forEach((m) => { m.opacity = o; });
+    async function changeRecord(t) {
+        swapping = true;
+        placeArm();
+        const printed = printDisc(t);
+        // wait for the arm to be home before the record comes off
+        const t0 = performance.now();
+        while (armMode !== 'rest' && performance.now() - t0 < 2500) await tween(60, EASE.out, () => {});
+        recordMats.forEach((m) => { m.transparent = true; });
+        await tween(440, EASE.in, (k) => {
+            record.position.set(-6 * k, MAT_TOP + 4.5 * k, 0);
+            setRecordOpacity(1 - k);
+        });
+        await Promise.race([printed, new Promise((ok) => setTimeout(ok, 2500))]);
+        showPrinted();
+        shownTrack = t;
+        await tween(680, EASE.outQuint, (k) => {
+            record.position.set(6 * (1 - k), MAT_TOP + 4.5 * (1 - k), 0);
+            setRecordOpacity(Math.min(1, k * 1.6));
+        });
+        record.position.set(0, MAT_TOP, 0);
+        recordMats.forEach((m) => { m.transparent = false; m.opacity = 1; });
+        swapping = false;
+        if (pendingTrack && pendingTrack !== shownTrack) {
+            const next = pendingTrack;
+            pendingTrack = undefined;
+            changeRecord(next);
+            return;
+        }
+        pendingTrack = undefined;
+        placeArm();
+    }
+
+    // ---- frame loop ----------------------------------------------------------------------------
 
     function tick(now) {
         rafId = 0;
         const dt = Math.min(.064, Math.max(0, (now - last) / 1000));
         last = now;
-        let busy = false;
+        let busy = stepTweens(now);
 
-        if (scratch) {
-            if (now - scratch.t > 50) scratch.vel *= Math.exp(-dt / .06); // a still hand stops the record under it
-            vel = scratch.vel;
-            opts.onScratchMove?.(scratch.vel / SPIN);
-            busy = true;
-        } else {
-            // spins up quicker than it spins down, like a motor with a heavy platter
-            const goal = playing && motion() ? SPIN : 0;
-            vel = smooth(vel, goal, dt, playing ? .5 : 1.1);
-            if (!goal && Math.abs(vel) < .5) vel = 0;
-            angle = (angle + vel * dt) % 360;
-            busy ||= vel !== 0;
-        }
+        const k = Math.min(1, (now - spin.t0) / spin.ms);
+        vel = lerp(spin.from, spin.to, EASE.out(k));
+        angle = (angle + vel * dt) % 360;
         spinner.rotation.y = -angle * DEG;
+        busy ||= vel !== 0;
 
-        busy = stepArm(dt) || busy;
+        if (armMode === 'tracking') yaw = grooveYaw();
+        armYaw.rotation.y = yaw;
+        armPitch.rotation.x = pitch;
 
-        // the start/stop key goes down and comes back up
-        const press = (now - keyAt) / 180;
-        startBtn.position.y = .45 - (press < 1 ? .14 * Math.sin(Math.PI * press) : 0);
-        busy ||= press < 1;
-        busy = stepSwap(now) || busy;
+        // the deck follows the hand closely, and settles without overshooting
+        turn.yaw = smooth(turn.yaw, turn.yawT, dt, .07);
+        turn.tilt = smooth(turn.tilt, turn.tiltT, dt, .07);
+        if (Math.abs(turn.yaw - turn.yawT) < 1e-4) turn.yaw = turn.yawT;
+        if (Math.abs(turn.tilt - turn.tiltT) < 1e-4) turn.tilt = turn.tiltT;
+        busy ||= turn.yaw !== turn.yawT || turn.tilt !== turn.tiltT;
+        deckRoot.rotation.set(turn.tilt, turn.yaw, 0);
 
-        if (motion()) {
-            tiltX = smooth(tiltX, tiltTX, dt, .35);
-            tiltY = smooth(tiltY, tiltTY, dt, .35);
-            busy ||= Math.abs(tiltX - tiltTX) > .0003 || Math.abs(tiltY - tiltTY) > .0003;
-        }
-        deckRoot.rotation.set(tiltX, tiltY, 0);
-
-        M.led.emissiveIntensity = smooth(M.led.emissiveIntensity, playing ? 2.2 : 0, dt, .2);
-        busy ||= Math.abs(M.led.emissiveIntensity - (playing ? 2.2 : 0)) > .01;
+        const ledOn = playing ? 2.2 : 0;
+        M.led.emissiveIntensity = smooth(M.led.emissiveIntensity, ledOn, dt, .15);
+        busy ||= Math.abs(M.led.emissiveIntensity - ledOn) > .01;
 
         if (visible) renderer.render(scene, camera);
         if (busy || needsFrame) { needsFrame = false; rafId = requestAnimationFrame(tick); }
     }
-    let needsFrame = false;
     function wake() {
         needsFrame = true;
         if (rafId) return;
@@ -787,164 +807,159 @@ export function createTurntable(host, opts) {
         rafId = requestAnimationFrame(tick);
     }
 
-    // ---- pointer: tap to play or pause, drag the record to scratch ---------------------
+    // ---- pointer: drag to turn the deck, tap the record or the key to play or pause ------------
 
     const ray = new Raycaster();
     const ndc = new Vector2();
-    const hitPlane = new Plane(new Vector3(0, 1, 0), 0);
-    const hitPoint = new Vector3();
-    const hitTargets = [recordFace, label, startBtn];
-
-    function aim(e) {
+    function hitAt(e) {
         const r = canvas.getBoundingClientRect();
         ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
         ray.setFromCamera(ndc, camera);
-    }
-    // where the pointer is on the record, as an angle round the spindle
-    function recordAngle(e) {
-        aim(e);
-        deckRoot.updateMatrixWorld();
-        const top = new Vector3(C.x, RECORD_TOP, C.z).applyMatrix4(deckRoot.matrixWorld);
-        const up = new Vector3(0, 1, 0).applyQuaternion(deckRoot.quaternion);
-        hitPlane.setFromNormalAndCoplanarPoint(up, top);
-        if (!ray.ray.intersectPlane(hitPlane, hitPoint)) return null;
-        const p = deckRoot.worldToLocal(hitPoint.clone());
-        return { a: Math.atan2(p.z - C.z, p.x - C.x) / DEG, r: Math.hypot(p.x - C.x, p.z - C.z) };
-    }
-    function hitAt(e) {
-        aim(e);
-        const hit = ray.intersectObjects(hitTargets, false)[0];
+        const hit = ray.intersectObjects([recordFace, startBtn, plinth, platter], false)[0];
         if (!hit) return null;
-        if (hit.object === startBtn) return 'button';
-        return 'record';
+        if (hit.object === startBtn) return 'key';
+        if (hit.object === recordFace || hit.object === platter) return 'record';
+        return 'deck';
+    }
+
+    function pressKey() {
+        const y0 = .45;
+        tween(90, EASE.out, (k) => { startBtn.position.y = y0 - .14 * k; })
+            .then(() => tween(280, EASE.outQuint, (k) => { startBtn.position.y = y0 - .14 * (1 - k); }));
+    }
+
+    function goHomeLater() {
+        clearTimeout(homeTimer);
+        homeTimer = setTimeout(() => {
+            if (drag) return;
+            const from = { y: turn.yawT, t: turn.tiltT };
+            tween(1200, EASE.inOut, (k) => {
+                turn.yawT = lerp(from.y, 0, k);
+                turn.tiltT = lerp(from.t, 0, k);
+            });
+        }, 2600);
     }
 
     canvas.addEventListener('pointerdown', (e) => {
         if (e.pointerType === 'mouse' && e.button !== 0) return;
-        const what = hitAt(e);
-        if (!what) return;
-        if (what === 'button') {
-            keyAt = performance.now();
-            opts.onSound?.('key');
-            opts.onToggle?.();
-            wake();
-            return;
-        }
-        if (swap) return;
-        const p = recordAngle(e);
-        if (!p || p.r > RECORD.r) return;
-        e.preventDefault();
+        const what = hitAt(e) || 'none'; // the empty space round the deck turns it too
+        clearTimeout(homeTimer);
+        drag = { id: e.pointerId, x: e.clientX, y: e.clientY, yaw: turn.yawT, tilt: turn.tiltT, moved: 0, what };
         canvas.setPointerCapture(e.pointerId);
-        scratch = { a: p.a, t: performance.now(), vel, moved: 0 };
         canvas.style.cursor = 'grabbing';
-        opts.onScratchStart?.();
-        wake();
     });
     canvas.addEventListener('pointermove', (e) => {
-        if (!scratch) {
+        if (!drag) {
             if (e.pointerType === 'mouse') {
                 const what = hitAt(e);
-                canvas.style.cursor = what === 'record' ? 'grab' : what === 'button' ? 'pointer' : '';
+                canvas.style.cursor = what === 'key' || what === 'record' ? 'pointer' : what ? 'grab' : '';
             }
             return;
         }
-        const p = recordAngle(e);
-        if (!p) return;
-        const now = performance.now();
-        const dt = Math.max(.004, (now - scratch.t) / 1000);
-        const d = wrapDeg(p.a - scratch.a);
-        scratch.a = p.a;
-        scratch.t = now;
-        if (p.r < 1.5) return; // too close to the spindle to tell which way it turned
-        scratch.moved += Math.abs(d);
-        angle = (angle + d + 360) % 360;
-        scratch.vel += (d / dt - scratch.vel) * .4;
+        if (e.pointerId !== drag.id) return;
+        const dx = e.clientX - drag.x;
+        const dy = e.clientY - drag.y;
+        drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
+        if (drag.moved < 4) return;
+        const w = canvas.clientWidth || 1;
+        turn.yawT = clamp(drag.yaw + (dx / w) * 1.6, -TURN.yaw, TURN.yaw);
+        turn.tiltT = clamp(drag.tilt + (dy / w) * 1.1, TURN.tiltDown, TURN.tiltUp);
         wake();
     });
-    function endScratch() {
-        if (!scratch) return;
-        const s = scratch;
-        scratch = null;
-        canvas.style.cursor = 'grab';
-        opts.onScratchEnd?.();
-        if (s.moved < 3) { opts.onToggle?.(); return; } // a tap plays or pauses
-        vel = s.vel; // a flick keeps it turning, then the motor takes over
-        wake();
+    function endDrag(e) {
+        if (!drag || (e && e.pointerId !== drag.id)) return;
+        const d = drag;
+        drag = null;
+        canvas.style.cursor = '';
+        if (d.moved < 4 && e?.type === 'pointerup') {
+            if (d.what === 'key') { pressKey(); opts.onToggle?.(); }
+            else if (d.what === 'record') opts.onToggle?.();
+        }
+        goHomeLater();
     }
-    canvas.addEventListener('pointerup', endScratch);
-    canvas.addEventListener('pointercancel', endScratch);
-    canvas.addEventListener('lostpointercapture', endScratch);
-
-    // the whole deck leans a little towards the pointer
-    addEventListener('pointermove', (e) => {
-        if (e.pointerType !== 'mouse' || !motion()) return;
-        tiltTY = ((e.clientX / innerWidth) - .5) * .07;
-        tiltTX = ((e.clientY / innerHeight) - .5) * .05;
-        wake();
-    }, { passive: true });
+    canvas.addEventListener('pointerup', endDrag);
+    canvas.addEventListener('pointercancel', endDrag);
 
     new ResizeObserver(frame).observe(host);
     new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; if (visible) wake(); }).observe(host);
     document.fonts?.ready.then(() => { paintDecals(); wake(); });
 
-    // ---- theme ------------------------------------------------------------------------
+    // ---- theme: colours glide to the new ones --------------------------------------------------
 
     const decalInk = { soft: '#8f939a', strong: '#5c5f66' };
     function paintDecals() { decals.forEach((d) => d.userData.paint(decalInk)); }
-    function setTheme(c) {
+    let themeJob = 0;
+    function setTheme(c, animate = true) {
         if (!c) return;
-        const set = (m, v) => { if (v) m.color.set(v); };
-        set(M.body, c.body);
-        set(M.felt, c.mat);
-        set(M.trim, c.trim);
-        set(M.accent, c.accent);
+        const job = ++themeJob;
+        const pairs = [[M.body, c.body], [M.felt, c.mat], [M.trim, c.trim], [M.accent, c.accent]]
+            .filter(([, v]) => v)
+            .map(([m, v]) => [m, m.color.clone(), new Color(v)]);
+        const metal = [M.body.metalness, Number.isFinite(c.metal) ? c.metal : M.body.metalness];
+        const rough = [M.body.roughness, Number.isFinite(c.rough) ? c.rough : M.body.roughness];
+        const env = [scene.environmentIntensity, c.dark ? .55 : .95];
+        const keyI = [key.intensity, c.dark ? 1.6 : 2.1];
+        const shadow = [floorShadow.material.opacity, c.dark ? .6 : .3];
         if (c.accent) M.led.emissive.set(c.accent);
-        M.felt.sheenColor.set(c.mat || '#555').offsetHSL(0, 0, .15);
-        scene.environmentIntensity = c.dark ? .55 : .95;
-        key.intensity = c.dark ? 1.6 : 2.1;
-        floorShadow.material.opacity = c.dark ? .6 : .3;
         if (c.ink) decalInk.soft = c.ink;
         if (c.inkStrong) decalInk.strong = c.inkStrong;
-        if (Number.isFinite(c.metal)) M.body.metalness = c.metal;
-        if (Number.isFinite(c.rough)) M.body.roughness = c.rough;
         paintDecals();
-        wake();
+        tween(animate ? 450 : 1, EASE.inOut, (k) => {
+            if (job !== themeJob) return;
+            pairs.forEach(([m, from, to]) => m.color.lerpColors(from, to, k));
+            M.felt.sheenColor.copy(M.felt.color).offsetHSL(0, 0, .15);
+            M.body.metalness = lerp(metal[0], metal[1], k);
+            M.body.roughness = lerp(rough[0], rough[1], k);
+            scene.environmentIntensity = lerp(env[0], env[1], k);
+            key.intensity = lerp(keyI[0], keyI[1], k);
+            floorShadow.material.opacity = lerp(shadow[0], shadow[1], k);
+        });
     }
 
-    setTheme(opts.colors);
-    paintLabel(null, null);
+    setTheme(opts.colors, false);
+    paintDisc(discCanvas.getContext('2d'), null, null);
+    discTex.needsUpdate = true;
     frame();
+
+    // the deck turns in once, the first time it's shown
+    if (motion()) {
+        turn.yaw = turn.yawT = -.32;
+        turn.tilt = turn.tiltT = .08;
+        tween(1500, EASE.outQuint, (k) => { turn.yawT = lerp(-.32, 0, k); turn.tiltT = lerp(.08, 0, k); });
+    }
 
     // ---- what the page uses ---------------------------------------------------------------
 
     return {
         setTrack(t, animate) {
-            if (!animate || !motion()) {
-                printLabel(t).then(wake);
+            if (swapping) { pendingTrack = t; return; }
+            if (!animate || !motion() || !shownTrack) {
+                printDisc(t).then((ok) => { if (ok) { showPrinted(); shownTrack = t; wake(); } });
                 return;
             }
-            const job = { stage: 'arm', t0: performance.now(), ready: false };
-            swap = job;
-            const minOut = new Promise((ok) => setTimeout(ok, 380));
-            Promise.race([Promise.all([printLabel(t), minOut]), new Promise((ok) => setTimeout(ok, 2500))])
-                .then(() => { if (swap === job) job.ready = true; wake(); });
-            wake();
+            changeRecord(t);
         },
         setPlaying(p) {
-            playing = !!p;
+            p = !!p;
+            if (p === playing) return;
+            prog = { ...prog, p: progressNow(), at: performance.now() };
+            playing = p;
+            setMotor(p);
+            placeArm();
             wake();
         },
-        setProgress(p) {
+        setProgress(p, durationSec) {
             if (!Number.isFinite(p)) return;
-            progress = p;
+            prog = { p, at: performance.now(), dur: durationSec > 0 ? durationSec : prog.dur };
+            placeArm();
             wake();
         },
-        setTheme,
         setInfo({ no, last } = {}) {
             if (no !== undefined) info.no = String(no);
             if (last !== undefined) info.last = String(last);
             paintDecals();
             wake();
         },
+        setTheme,
     };
 }

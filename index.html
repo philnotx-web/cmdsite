@@ -33,7 +33,7 @@
         })();
     </script>
 
-    <link rel="preload" href="fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="fonts/inter-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="style.css">
     <script src="playlist.js" defer></script>
     <script src="app.js" defer></script>
@@ -42,7 +42,7 @@
     <a class="skip" href="#main">Skip to content</a>
 
     <header class="top wrap">
-        <a class="brand" href="/" aria-label="stole.cc home">stole<span>.cc</span></a>
+        <a class="brand" href="/" aria-label="stole.cc home"><span class="brand-disc" aria-hidden="true"></span><span class="brand-name">stole<span>.cc</span></span></a>
         <div class="top-end">
             <span class="clock"><time id="clock">--:--</time> <span class="dim">Frankfurt</span></span>
             <div class="themes" role="radiogroup" aria-label="Theme">
@@ -56,7 +56,8 @@
     <main id="main">
         <section class="hero wrap">
             <div class="hero-text">
-                <h1 class="wordmark">stole<span class="wm-dot">.</span><span class="wm-tld">cc</span></h1>
+                <h1 class="wordmark" aria-label="stole.cc"><span class="wm-part">stole</span><span class="wm-part wm-dot">.</span><span class="wm-part wm-tld">cc</span></h1>
+                <p class="about">Hello visitor, my name’s Philipp and I’m located in Germany. If you would like to look at my stuff or contact me, you’re in the right place :)</p>
 
                 <section class="contact" aria-labelledby="contact-h">
                     <div class="sec-head">
@@ -96,11 +97,11 @@
                             </span>
                             <div class="link-body">
                                 <span class="svc">Discord</span>
-                                <a class="val" href="https://discord.com/users/1492904216514265128" target="_blank" rel="noopener">View profile</a>
+                                <a class="val" href="https://discord.com/users/832332232982528000" target="_blank" rel="noopener">View profile</a>
                             </div>
                             <span class="acts">
-                                <button class="btn" type="button" data-copy="https://discord.com/users/1492904216514265128" data-copy-name="Discord profile link" aria-label="Copy Discord profile link">Copy</button>
-                                <a class="btn" href="https://discord.com/users/1492904216514265128" target="_blank" rel="noopener">Open</a>
+                                <button class="btn" type="button" data-copy="https://discord.com/users/832332232982528000" data-copy-name="Discord profile link" aria-label="Copy Discord profile link">Copy</button>
+                                <a class="btn" href="https://discord.com/users/832332232982528000" target="_blank" rel="noopener">Open</a>
                             </span>
                         </li>
                     </ul>
@@ -160,50 +161,14 @@
                         <input type="range" id="vol" min="0" max="100" value="70">
                     </label>
                 </div>
-                <p class="deck-hint">Drag the record to scratch · Space plays or pauses · N skips</p>
             </section>
         </section>
 
-        <!-- Last.fm: plays scrobbled from Apple Music; hidden on the live site until there's data -->
-        <section class="stats wrap" id="stats" aria-labelledby="stats-h" hidden>
-            <div class="sec-head">
-                <h2 id="stats-h">Listening</h2>
-                <div class="seg" role="radiogroup" aria-label="Period" id="period">
-                    <button type="button" role="radio" data-period="7day">7 days</button>
-                    <button type="button" role="radio" data-period="1month">30 days</button>
-                    <button type="button" role="radio" data-period="12month">12 months</button>
-                    <button type="button" role="radio" data-period="overall">All time</button>
-                </div>
-            </div>
-
-            <div class="tiles">
-                <div class="tile card"><span class="tile-label" id="tileScrobblesLabel">Scrobbles, last 30 days</span><span class="tile-value" id="tileScrobbles">–</span></div>
-                <div class="tile card"><span class="tile-label" id="tileArtistsLabel">Artists, last 30 days</span><span class="tile-value" id="tileArtists">–</span></div>
-                <div class="tile card"><span class="tile-label">Scrobbles, all time</span><span class="tile-value" id="tileTotal">–</span></div>
-            </div>
-
-            <div class="stat-cols">
-                <section class="card stat-card" aria-labelledby="top-artists-h">
-                    <h3 id="top-artists-h">Top artists</h3>
-                    <ol class="bars" id="topArtists"></ol>
-                </section>
-                <section class="card stat-card" aria-labelledby="top-tracks-h">
-                    <h3 id="top-tracks-h">Top tracks</h3>
-                    <ol class="rows" id="topTracks"></ol>
-                </section>
-                <section class="card stat-card" aria-labelledby="recent-h">
-                    <h3 id="recent-h">Recently played</h3>
-                    <ol class="rows" id="recentList"></ol>
-                </section>
-            </div>
-            <p class="note" id="statsNote" hidden></p>
-            <p class="src">Scrobbled from Apple Music via <a href="https://www.last.fm/user/imsolost222" target="_blank" rel="noopener" id="lfmLink">Last.fm</a></p>
-        </section>
-
-        <section class="crate wrap" aria-labelledby="crate-h">
-            <div class="sec-head">
+        <section class="crate wrap reveal" aria-labelledby="crate-h">
+            <div class="crate-head">
                 <div>
-                    <h2 id="crate-h"><span id="plName">GTBSG</span></h2>
+                    <p class="eyebrow">Playlist</p>
+                    <h2 id="crate-h" class="crate-name"><span id="plName">GTBSG</span></h2>
                     <p class="sub">my compact playlist, click at some songs to give them a listen!</p>
                 </div>
                 <div class="crate-tools">
@@ -213,11 +178,40 @@
                         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
                         <input type="search" id="plFilter" placeholder="Filter" autocomplete="off" spellcheck="false">
                     </label>
-                    <a class="btn" id="plOpen" href="#" target="_blank" rel="noopener">Apple Music</a>
+                    <a class="btn" id="plOpen" href="#" target="_blank" rel="noopener">Apple Music<span class="btn-arrow" aria-hidden="true">↗</span></a>
                 </div>
             </div>
-            <ol class="pl card" id="plList"></ol>
+            <div class="pl-wrap" id="plWrap">
+                <ol class="pl" id="plList"></ol>
+            </div>
+            <div class="pl-foot">
+                <button class="btn" type="button" id="plMore" aria-controls="plWrap" aria-expanded="false">Show all songs</button>
+            </div>
         </section>
+
+        <!-- Last.fm: what's been on lately; hidden on the live site until there's data -->
+        <section class="stats wrap reveal" id="stats" aria-labelledby="stats-h" hidden>
+            <div class="sec-head">
+                <h2 id="stats-h">Lately</h2>
+                <a class="src" href="https://www.last.fm/user/imsolost222" target="_blank" rel="noopener">via Last.fm</a>
+            </div>
+            <div class="stat-cols">
+                <section class="card stat-card" aria-labelledby="recent-h">
+                    <h3 id="recent-h">Recently played</h3>
+                    <ol class="rows" id="recentList"></ol>
+                </section>
+                <section class="card stat-card" aria-labelledby="top-tracks-h">
+                    <h3 id="top-tracks-h">On repeat this month</h3>
+                    <ol class="rows" id="topTracks"></ol>
+                </section>
+                <section class="card stat-card" aria-labelledby="top-artists-h">
+                    <h3 id="top-artists-h">Top artists this month</h3>
+                    <ol class="bars" id="topArtists"></ol>
+                </section>
+            </div>
+            <p class="note" id="statsNote" hidden></p>
+        </section>
+
     </main>
 
     <footer class="foot wrap">
