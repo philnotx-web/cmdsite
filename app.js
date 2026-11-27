@@ -74,6 +74,7 @@
     const systemDark = matchMedia('(prefers-color-scheme: dark)');
     const themeColor = $('meta[name="theme-color"]');
     let turntable = null;
+    let logoBox = null;
 
     function applyTheme(t, save) {
         root.dataset.theme = t;
@@ -81,6 +82,15 @@
         $$('.theme-pick').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.pick === t)));
         themeColor.content = getComputedStyle(root).getPropertyValue('--bg').trim();
         turntable?.setTheme(readTurntableColors());
+        logoBox?.setTheme(readLogoColors());
+    }
+    function readLogoColors() {
+        const cs = getComputedStyle(root);
+        const v = (n) => cs.getPropertyValue(n).trim();
+        return {
+            ink: v('--ink'), dot: v('--wm-dot'), tld: v('--wm-tld'), glass: v('--glass-tint'),
+            glassA: parseFloat(v('--glass-a')) || .62, dark: root.dataset.theme === 'dark',
+        };
     }
     function readTurntableColors() {
         const cs = getComputedStyle(root);
@@ -292,6 +302,10 @@
         const art = coverUrl(t, 160);
         if (art) npArt.src = art; else npArt.removeAttribute('src');
         if (art) flatLabel.src = coverUrl(t, 300);
+        $('#logoTitle').textContent = t.title;
+        logoBox?.setSong(t);
+        const logoArt = $('#logoArt');
+        if (art) logoArt.src = coverUrl(t, 80); else logoArt.removeAttribute('src');
         renderPlayedInfo();
         plRows.forEach((r) => r.classList.toggle('is-current', r._track === t));
         // the title and artist slide in fresh for each song
@@ -477,7 +491,25 @@
     const ttHost = $('#tt');
     flatRecord.addEventListener('click', toggle);
 
-    import('./turntable.js')
+    const deckModule = import('./turntable.js');
+
+    // the logo: a rounded glass box that rolls up on hover to show the song that's on
+    const brand = $('.brand');
+    deckModule
+        .then(({ createLogoBox }) => {
+            logoBox = createLogoBox($('.logo3d'), { colors: readLogoColors(), reduceMotion });
+            if (current) logoBox.setSong(current);
+            $('.logo3d').classList.add('is-3d');
+            const up = () => logoBox.flip(true);
+            const down = () => logoBox.flip(false);
+            brand.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') up(); });
+            brand.addEventListener('pointerleave', down);
+            brand.addEventListener('focus', up);
+            brand.addEventListener('blur', down);
+        })
+        .catch(() => { /* the flat logo stays */ });
+
+    deckModule
         .then(({ createTurntable }) => createTurntable(ttHost, { onToggle: toggle, colors: readTurntableColors(), reduceMotion }))
         .then((tt) => {
             turntable = tt;
@@ -485,8 +517,31 @@
             tt.setPlaying(playing);
             flatRecord.classList.remove('is-spinning');
             ttHost.classList.add('is-3d');
+            setTimeout(queueScrollTurn, 950); // once it has turned in
         })
         .catch((err) => { console.warn('3D turntable unavailable:', err); });
+
+    // ---- on phones the deck turns as the page scrolls past it ---------------------------------
+    // From a little turned one way as it comes up the screen to the other way as it leaves.
+
+    const scrollTurnQuery = matchMedia('(max-width: 960px), (hover: none)');
+    let scrollTurnQueued = false;
+    function scrollTurn() {
+        scrollTurnQueued = false;
+        if (!turntable) return;
+        if (!scrollTurnQuery.matches || reduceMotion.matches) { turntable.setTurn(null); return; }
+        const r = ttHost.getBoundingClientRect();
+        const p = clamp((innerHeight - r.top) / (innerHeight + r.height), 0, 1);
+        turntable.setTurn(-.4 + .8 * p, .13 - .21 * p);
+    }
+    const queueScrollTurn = () => {
+        if (scrollTurnQueued) return;
+        scrollTurnQueued = true;
+        requestAnimationFrame(scrollTurn);
+    };
+    addEventListener('scroll', queueScrollTurn, { passive: true });
+    addEventListener('resize', queueScrollTurn, { passive: true });
+    scrollTurnQuery.addEventListener('change', queueScrollTurn);
 
     // ---- keyboard ----------------------------------------------------------------------
 
