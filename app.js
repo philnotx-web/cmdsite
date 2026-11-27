@@ -86,7 +86,7 @@
         const cs = getComputedStyle(root);
         const v = (n) => cs.getPropertyValue(n).trim();
         return {
-            body: v('--tt-body'), mat: v('--tt-mat'), trim: v('--tt-trim'), accent: v('--accent'),
+            body: v('--tt-body'), mat: v('--tt-mat'), trim: v('--tt-trim'), accent: v('--accent'), arm: v('--tt-arm'),
             ink: v('--ink-3'), inkStrong: v('--ink-2'), metal: parseFloat(v('--tt-metal')), rough: parseFloat(v('--tt-rough')),
             dark: root.dataset.theme === 'dark',
         };
@@ -324,6 +324,7 @@
         renderTime();
         if (changed) turntable?.setTrack(t, !first);
         if (autoplay) play();
+        turntable?.preload(queue[0]);
     }
 
     function nextTrack(autoplay = wantPlay) {
@@ -414,6 +415,7 @@
         card.append(cover, text);
         card.setAttribute('aria-label', `${t.no}. ${t.title} by ${t.artist}`);
         card.addEventListener('click', () => playTrack(t));
+        card.addEventListener('pointerenter', () => turntable?.preload(t), { passive: true });
         li.appendChild(card);
         plList.appendChild(li);
         return card;
@@ -445,7 +447,7 @@
         plMore.setAttribute('aria-expanded', String(open));
         if (!animate || reduceMotion.matches || !plWrap.animate) return;
         const to = plWrap.getBoundingClientRect().height;
-        plWrap.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: 650, easing: 'cubic-bezier(.65, 0, .35, 1)' });
+        plWrap.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: 380, easing: 'cubic-bezier(.65, 0, .35, 1)' });
     }
     plMore.addEventListener('click', () => {
         const open = !plWrap.classList.contains('is-open');
@@ -833,8 +835,8 @@
         let long = '';
         if (key === nowPlayingKey) { short = 'now'; long = 'Playing on Apple Music right now'; }
         else if (at) { short = shortAgo(at); long = `Last played ${ago(at)}`; }
-        else if (historyState === 'complete') { short = 'never'; long = 'Not played yet'; }
-        $('#npMeta').textContent = [`No. ${t.no}`, long].filter(Boolean).join(' · ');
+        else if (historyState === 'complete') { short = 'long ago'; long = 'Played a long time ago'; }
+        $('#npMeta').textContent = long;
         turntable?.setInfo({ no: t.no, last: short });
     }
     setInterval(renderPlayedInfo, 60000);

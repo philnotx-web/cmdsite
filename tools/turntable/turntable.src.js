@@ -11,7 +11,8 @@
 import {
     WebGLRenderer, Scene, PerspectiveCamera, Group, Mesh, Color, Vector2, Vector3, Plane, Raycaster,
     MeshPhysicalMaterial, MeshStandardMaterial, MeshBasicMaterial,
-    CylinderGeometry, CircleGeometry, BoxGeometry, PlaneGeometry, SphereGeometry, ExtrudeGeometry, Shape,
+    CylinderGeometry, CircleGeometry, PlaneGeometry, SphereGeometry, ExtrudeGeometry, LatheGeometry, TubeGeometry, Shape,
+    CatmullRomCurve3,
     DirectionalLight, PMREMGenerator, CanvasTexture, DataTexture, Euler,
     SRGBColorSpace, NeutralToneMapping, PCFShadowMap, RGBAFormat, LinearFilter, LinearMipmapLinearFilter,
     RepeatWrapping,
@@ -87,6 +88,8 @@ export function createTurntable(host, opts) {
         black: new MeshStandardMaterial({ color: 0x141416, roughness: .5 }),
         felt: new MeshPhysicalMaterial({ color: 0x1c1c1e, roughness: 1, sheen: 1, sheenRoughness: .8, sheenColor: new Color(0x555555) }),
         accent: new MeshStandardMaterial({ color: 0xe8551d, roughness: .4 }),
+        arm: new MeshPhysicalMaterial({ color: 0x26282c, roughness: .32, metalness: .55, clearcoat: .4, clearcoatRoughness: .25 }),
+        slot: new MeshStandardMaterial({ color: 0xb9babd, roughness: .6 }),
         led: new MeshStandardMaterial({ color: 0x222222, emissive: 0xe8551d, emissiveIntensity: 0 }),
         vinylEdge: new MeshPhysicalMaterial({ color: 0x0b0b0c, roughness: .3, clearcoat: .6, clearcoatRoughness: .2 }),
     };
@@ -306,23 +309,34 @@ export function createTurntable(host, opts) {
     record.add(recordEdge);
     const recordMats = [vinylTop, M.vinylEdge];
 
-    // ---- tone arm -------------------------------------------------------------------
+    // ---- tone arm: slim and turned, in one satin finish, the cartridge the only colour ----------
+
+    // a cylinder with rounded edges, so the parts look turned rather than cut
+    function turned(r, h, edge, mat, seg = 48) {
+        const pts = [new Vector2(0, 0)];
+        for (let i = 0; i <= 6; i++) {
+            const a = (Math.PI / 2) * (i / 6);
+            pts.push(new Vector2(r - edge + Math.sin(a) * edge, edge - Math.cos(a) * edge));
+        }
+        for (let i = 0; i <= 6; i++) {
+            const a = (Math.PI / 2) * (i / 6);
+            pts.push(new Vector2(r - edge + Math.cos(a) * edge, h - edge + Math.sin(a) * edge));
+        }
+        pts.push(new Vector2(0, h));
+        const m = new Mesh(new LatheGeometry(pts, seg), mat);
+        m.castShadow = true;
+        return m;
+    }
 
     const armBase = new Group();
     armBase.position.copy(PIVOT);
     deckRoot.add(armBase);
-    const plate = new Mesh(new CylinderGeometry(3.1, 3.2, .35, 64), M.darkMetal);
-    plate.position.y = .17;
-    plate.castShadow = plate.receiveShadow = true;
+    const plate = turned(2.5, .28, .12, M.trim, 64);
+    plate.receiveShadow = true;
     armBase.add(plate);
-    const collar = new Mesh(new CylinderGeometry(2.1, 2.1, .9, 48), M.metal);
-    collar.position.y = .8;
-    collar.castShadow = true;
-    armBase.add(collar);
-    const post = new Mesh(new CylinderGeometry(1.05, 1.15, ARM.y - 1.2, 32), M.darkMetal);
-    post.position.y = 1.2 + (ARM.y - 1.2) / 2;
-    post.castShadow = true;
-    armBase.add(post);
+    const column = turned(.72, ARM.y - .28 + .5, .3, M.arm);
+    column.position.y = .28;
+    armBase.add(column);
 
     const armYaw = new Group();      // swings across the record
     armYaw.position.y = ARM.y;
@@ -330,54 +344,74 @@ export function createTurntable(host, opts) {
     const armPitch = new Group();    // lifts and lowers
     armYaw.add(armPitch);
 
-    const gimbal = new Mesh(new BoxGeometry(1.7, 1.3, 1.7), M.metal);
-    gimbal.castShadow = true;
-    armPitch.add(gimbal);
-    const tubeLen = ARM.len - 3.2;
-    const tube = new Mesh(new CylinderGeometry(.3, .3, tubeLen, 20), M.metal);
+    // the bearing: a short, rounded axle across the arm
+    const hub = turned(.5, 1.6, .22, M.arm, 32);
+    hub.rotation.z = Math.PI / 2;
+    hub.position.x = .8;
+    armPitch.add(hub);
+    // the tube tapers towards the headshell
+    const tubeEnd = ARM.len - 2.5;
+    const tube = new Mesh(new CylinderGeometry(.16, .23, tubeEnd - .4, 24), M.arm);
     tube.rotation.x = Math.PI / 2;
-    tube.position.z = tubeLen / 2 + .4;
+    tube.position.z = (tubeEnd + .4) / 2;
     tube.castShadow = true;
     armPitch.add(tube);
-    const stub = new Mesh(new CylinderGeometry(.42, .42, 4.6, 20), M.metal);
+    const tubeCap = new Mesh(new SphereGeometry(.16, 16, 12), M.arm);
+    tubeCap.position.z = tubeEnd;
+    armPitch.add(tubeCap);
+    const stub = new Mesh(new CylinderGeometry(.18, .18, 2.8, 16), M.arm);
     stub.rotation.x = Math.PI / 2;
-    stub.position.z = -2.3;
+    stub.position.z = -1.6;
     armPitch.add(stub);
-    const weight = new Mesh(new CylinderGeometry(1.35, 1.35, 2.6, 40), M.darkMetal);
-    weight.rotation.x = Math.PI / 2;
-    weight.position.z = -4.4;
-    weight.castShadow = true;
+    const weight = turned(1.02, 2.1, .4, M.arm);
+    weight.rotation.x = -Math.PI / 2;
+    weight.position.z = -2.7;
     armPitch.add(weight);
+    const weightRing = new Mesh(new CylinderGeometry(1.03, 1.03, .07, 48), M.trim);
+    weightRing.rotation.x = Math.PI / 2;
+    weightRing.position.z = -2.95;
+    armPitch.add(weightRing);
 
-    // headshell and cartridge, turned in by the offset angle so the stylus sits along the groove
+    // headshell: a tapered plate, turned in by the offset angle so the stylus sits along the groove
     const head = new Group();
     head.position.z = ARM.len;
     head.rotation.y = -22 * DEG;
     armPitch.add(head);
-    const shell = new Mesh(new BoxGeometry(1.9, .28, 3.4), M.metal);
-    shell.position.set(0, .05, -1.2);
+    const shellShape = new Shape();
+    shellShape.moveTo(-.55, -.75);
+    shellShape.lineTo(.55, -.75);
+    shellShape.quadraticCurveTo(.8, -.75, .78, -.5);
+    shellShape.lineTo(.24, 2.55);
+    shellShape.absarc(0, 2.55, .24, 0, Math.PI, false);
+    shellShape.lineTo(-.78, -.5);
+    shellShape.quadraticCurveTo(-.8, -.75, -.55, -.75);
+    const shellGeo = new ExtrudeGeometry(shellShape, { depth: .12, bevelEnabled: true, bevelThickness: .04, bevelSize: .04, bevelSegments: 3, curveSegments: 12 });
+    shellGeo.rotateX(-Math.PI / 2);
+    const shell = new Mesh(shellGeo, M.arm);
+    shell.position.y = -.12;
     shell.castShadow = true;
     head.add(shell);
-    const cart = new Mesh(new BoxGeometry(1.45, 1.05, 2.3), M.accent);
-    cart.position.set(0, -.6, -.7);
-    cart.castShadow = true;
+    const cart = slab(1.0, 1.6, 1.0, .22, .08, M.accent);
+    cart.position.set(0, -.2, -.1);
     head.add(cart);
-    const stylus = new Mesh(new CylinderGeometry(.05, .02, .45, 8), M.metal);
-    stylus.position.set(0, -1.3, 0);
+    const stylus = new Mesh(new CylinderGeometry(.06, .015, .3, 8), M.metal);
+    stylus.position.set(0, -1.35, .45);
     head.add(stylus);
-    const fingerLift = new Mesh(new BoxGeometry(1.7, .1, .45), M.metal);
-    fingerLift.position.set(1.6, .05, -2.4);
-    head.add(fingerLift);
+    // a thin finger lift, curving up and out from the side of the headshell
+    const lift = new Mesh(new TubeGeometry(new CatmullRomCurve3([
+        new Vector3(.55, -.04, .1), new Vector3(1.05, .02, .15), new Vector3(1.4, .32, .2),
+    ]), 16, .055, 8), M.arm);
+    lift.castShadow = true;
+    head.add(lift);
 
-    // arm rest, where the arm lies when it's off the record
+    // arm rest: a slim post with a small rounded cup the tube settles into
     const restZ = 15;
-    const rest = new Mesh(new CylinderGeometry(.35, .4, ARM.y - .3, 16), M.darkMetal);
-    rest.position.set(PIVOT.x, (ARM.y - .3) / 2, PIVOT.z + restZ);
-    rest.castShadow = true;
-    deckRoot.add(rest);
-    const cradle = new Mesh(new BoxGeometry(1.3, .35, .6), M.black);
-    cradle.position.set(PIVOT.x, ARM.y - .45, PIVOT.z + restZ);
-    deckRoot.add(cradle);
+    const restPost = turned(.2, ARM.y - .6, .08, M.arm, 24);
+    restPost.position.set(PIVOT.x, 0, PIVOT.z + restZ);
+    deckRoot.add(restPost);
+    const restCup = turned(.42, .32, .14, M.trim, 32);
+    restCup.position.set(PIVOT.x, ARM.y - .58, PIVOT.z + restZ);
+    deckRoot.add(restCup);
 
     // ---- controls on the plinth ------------------------------------------------------
 
@@ -406,8 +440,10 @@ export function createTurntable(host, opts) {
             if ('letterSpacing' in g) g.letterSpacing = '1px';
             g.fillText(k.caption, w / 2, h * .27);
             g.fillStyle = ink.strong;
-            g.font = `650 ${Math.round(h * .42)}px Inter, system-ui, sans-serif`;
             if ('letterSpacing' in g) g.letterSpacing = '0px';
+            let px = Math.round(h * .42);
+            do g.font = `650 ${px}px Inter, system-ui, sans-serif`;
+            while (g.measureText(k.value()).width > w * .88 && (px -= 2) > h * .2);
             g.fillText(k.value(), w / 2, h * .64);
         });
         d.position.set(k.x, .31, 16.3);
@@ -417,12 +453,12 @@ export function createTurntable(host, opts) {
     led.position.set(-14.5, .06, 15.1);
     deckRoot.add(led);
 
-    // pitch fader on the right
-    const slot = new Mesh(new BoxGeometry(.4, .06, 10), M.darkMetal);
-    slot.position.set(19.6, .02, 6.4);
+    // pitch fader on the right: a fine slot and a small rounded knob
+    const slot = slab(.36, 9.4, .04, .18, .01, M.slot);
+    slot.position.set(19.6, .03, 6.4);
     deckRoot.add(slot);
-    const knob = slab(1.9, 1.2, .7, .3, .12, M.trim);
-    knob.position.set(19.6, .6, 6.4);
+    const knob = slab(1.5, .9, .5, .3, .1, M.arm);
+    knob.position.set(19.6, .5, 6.4);
     deckRoot.add(knob);
     const brand = textDecal('stole.cc', 8, 1.6, { size: 64, weight: 600, align: 'right' });
     brand.position.set(17.6, .005, 15.4);
@@ -695,29 +731,31 @@ export function createTurntable(host, opts) {
 
     // ---- tone arm: lift, swing, lower --------------------------------------------------------
 
+    // intent: 'groove' (lower onto the record), 'rest' (lie on the rest), 'park' (hover just off
+    // the record's edge while the record is changed)
+    const parkYaw = () => yawFor(RECORD.r + 1.2);
     async function armSequence(intent) {
         const job = ++armJob;
         armIntent = intent;
         armMode = 'moving';
         const live = () => job === armJob;
-        const swingTo = async (goal) => {
-            const from = yaw;
-            const ms = 520 + Math.abs(goal() - from) * 1100;
-            await tween(ms, EASE.inOut, (k) => { yaw = lerp(from, goal(), k); });
-        };
+        const goal = intent === 'groove' ? grooveYaw : intent === 'park' ? parkYaw : () => 0;
         const p0 = pitch;
-        if (Math.abs(pitch - ARM.lift) > .001) await tween(260, EASE.out, (k) => { pitch = lerp(p0, ARM.lift, k); });
+        if (Math.abs(pitch - ARM.lift) > .001) await tween(110, EASE.out, (k) => { pitch = lerp(p0, ARM.lift, k); });
         if (!live()) return;
-        await swingTo(intent === 'groove' ? grooveYaw : () => 0);
+        const from = yaw;
+        await tween(160 + Math.abs(goal() - from) * 420, EASE.inOut, (k) => { yaw = lerp(from, goal(), k); });
         if (!live()) return;
-        await tween(intent === 'groove' ? 380 : 300, EASE.inOutSine, (k) => { pitch = lerp(ARM.lift, ARM.down, k); });
+        if (intent === 'park') { armMode = 'parked'; trace('arm parked'); return; }
+        await tween(150, EASE.inOutSine, (k) => { pitch = lerp(ARM.lift, ARM.down, k); });
         if (!live()) return;
         armMode = intent === 'groove' ? 'tracking' : 'rest';
+        trace(`arm ${armMode}`);
     }
 
     // decides where the arm belongs: on the groove while a song is on, otherwise on its rest
     function placeArm() {
-        const want = !swapping && (playing || prog.p > .002) ? 'groove' : 'rest';
+        const want = swapping ? 'park' : playing || prog.p > .002 ? 'groove' : 'rest';
         if (want === armIntent && armMode !== 'tracking') return; // already on its way
         if (want === 'groove' && armMode === 'tracking') {
             if (Math.abs(grooveYaw() - yaw) > .04) armSequence('groove'); // a seek: lift it and move
@@ -729,34 +767,48 @@ export function createTurntable(host, opts) {
     // ---- the motor --------------------------------------------------------------------------
 
     function setMotor(on) {
-        spin = { from: vel, to: on && motion() ? SPIN : 0, t0: performance.now(), ms: on ? 1100 : 1700 };
+        spin = { from: vel, to: on && motion() ? SPIN : 0, t0: performance.now(), ms: on ? 500 : 900 };
     }
 
     // ---- changing the record ------------------------------------------------------------------
 
     const setRecordOpacity = (o) => recordMats.forEach((m) => { m.opacity = o; });
+    const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
+    const trace = (what) => window.__ttTrace?.(what, performance.now());
+    // starts the moment the song changes: the arm lifts and parks beside the record while the old
+    // record lifts off and the new one drops on, then the arm goes back down
     async function changeRecord(t) {
+        trace('change start');
         swapping = true;
         placeArm();
-        const printed = printDisc(t);
-        // wait for the arm to be home before the record comes off
-        const t0 = performance.now();
-        while (armMode !== 'rest' && performance.now() - t0 < 2500) await tween(60, EASE.out, () => {});
+        let ready = false;
+        const printed = printDisc(t).then((ok) => {
+            ready = ok;
+            if (ok && shownTrack === t && !swapping) showPrinted(); // the cover arrived after the record landed
+            return ok;
+        });
         recordMats.forEach((m) => { m.transparent = true; });
-        await tween(440, EASE.in, (k) => {
-            record.position.set(-6 * k, MAT_TOP + 4.5 * k, 0);
+        await sleep(motion() ? 70 : 0); // the stylus clears the groove first
+        await tween(240, EASE.in, (k) => {
+            record.position.set(-6 * k, MAT_TOP + 2.5 * k, 0);
             setRecordOpacity(1 - k);
         });
-        await Promise.race([printed, new Promise((ok) => setTimeout(ok, 2500))]);
-        showPrinted();
+        await Promise.race([printed, sleep(220)]);
+        if (ready) showPrinted();
+        else { paintDisc(discCanvas.getContext('2d'), t, null); discTex.needsUpdate = true; }
         shownTrack = t;
-        await tween(680, EASE.outQuint, (k) => {
-            record.position.set(6 * (1 - k), MAT_TOP + 4.5 * (1 - k), 0);
-            setRecordOpacity(Math.min(1, k * 1.6));
+        // the arm heads back while the record settles: by then it's almost down
+        let armSent = false;
+        await tween(340, EASE.outQuint, (k, raw) => {
+            record.position.set(5 * (1 - k), MAT_TOP + 2.5 * (1 - k), 0);
+            setRecordOpacity(Math.min(1, k * 1.8));
+            if (raw >= .45 && !armSent && !pendingTrack) { armSent = true; swapping = false; placeArm(); }
         });
         record.position.set(0, MAT_TOP, 0);
+        trace(`record landed${ready ? '' : ' (cover still loading)'}`);
         recordMats.forEach((m) => { m.transparent = false; m.opacity = 1; });
         swapping = false;
+        if (ready) showPrinted();
         if (pendingTrack && pendingTrack !== shownTrack) {
             const next = pendingTrack;
             pendingTrack = undefined;
@@ -786,8 +838,8 @@ export function createTurntable(host, opts) {
         armPitch.rotation.x = pitch;
 
         // the deck follows the hand closely, and settles without overshooting
-        turn.yaw = smooth(turn.yaw, turn.yawT, dt, .07);
-        turn.tilt = smooth(turn.tilt, turn.tiltT, dt, .07);
+        turn.yaw = smooth(turn.yaw, turn.yawT, dt, .045);
+        turn.tilt = smooth(turn.tilt, turn.tiltT, dt, .045);
         if (Math.abs(turn.yaw - turn.yawT) < 1e-4) turn.yaw = turn.yawT;
         if (Math.abs(turn.tilt - turn.tiltT) < 1e-4) turn.tilt = turn.tiltT;
         busy ||= turn.yaw !== turn.yawT || turn.tilt !== turn.tiltT;
@@ -824,8 +876,8 @@ export function createTurntable(host, opts) {
 
     function pressKey() {
         const y0 = .45;
-        tween(90, EASE.out, (k) => { startBtn.position.y = y0 - .14 * k; })
-            .then(() => tween(280, EASE.outQuint, (k) => { startBtn.position.y = y0 - .14 * (1 - k); }));
+        tween(70, EASE.out, (k) => { startBtn.position.y = y0 - .14 * k; })
+            .then(() => tween(200, EASE.outQuint, (k) => { startBtn.position.y = y0 - .14 * (1 - k); }));
     }
 
     function goHomeLater() {
@@ -833,11 +885,11 @@ export function createTurntable(host, opts) {
         homeTimer = setTimeout(() => {
             if (drag) return;
             const from = { y: turn.yawT, t: turn.tiltT };
-            tween(1200, EASE.inOut, (k) => {
+            tween(700, EASE.inOut, (k) => {
                 turn.yawT = lerp(from.y, 0, k);
                 turn.tiltT = lerp(from.t, 0, k);
             });
-        }, 2600);
+        }, 1800);
     }
 
     canvas.addEventListener('pointerdown', (e) => {
@@ -892,7 +944,8 @@ export function createTurntable(host, opts) {
     function setTheme(c, animate = true) {
         if (!c) return;
         const job = ++themeJob;
-        const pairs = [[M.body, c.body], [M.felt, c.mat], [M.trim, c.trim], [M.accent, c.accent]]
+        const slotColor = c.trim ? new Color(c.trim).offsetHSL(0, 0, c.dark ? -.06 : -.12).getStyle() : null;
+        const pairs = [[M.body, c.body], [M.felt, c.mat], [M.trim, c.trim], [M.accent, c.accent], [M.arm, c.arm], [M.slot, slotColor]]
             .filter(([, v]) => v)
             .map(([m, v]) => [m, m.color.clone(), new Color(v)]);
         const metal = [M.body.metalness, Number.isFinite(c.metal) ? c.metal : M.body.metalness];
@@ -904,7 +957,7 @@ export function createTurntable(host, opts) {
         if (c.ink) decalInk.soft = c.ink;
         if (c.inkStrong) decalInk.strong = c.inkStrong;
         paintDecals();
-        tween(animate ? 450 : 1, EASE.inOut, (k) => {
+        tween(animate ? 300 : 1, EASE.inOut, (k) => {
             if (job !== themeJob) return;
             pairs.forEach(([m, from, to]) => m.color.lerpColors(from, to, k));
             M.felt.sheenColor.copy(M.felt.color).offsetHSL(0, 0, .15);
@@ -925,7 +978,7 @@ export function createTurntable(host, opts) {
     if (motion()) {
         turn.yaw = turn.yawT = -.32;
         turn.tilt = turn.tiltT = .08;
-        tween(1500, EASE.outQuint, (k) => { turn.yawT = lerp(-.32, 0, k); turn.tiltT = lerp(.08, 0, k); });
+        tween(900, EASE.outQuint, (k) => { turn.yawT = lerp(-.32, 0, k); turn.tiltT = lerp(.08, 0, k); });
     }
 
     // ---- what the page uses ---------------------------------------------------------------
@@ -961,5 +1014,8 @@ export function createTurntable(host, opts) {
             wake();
         },
         setTheme,
+        preload(t) {
+            if (t?.art) loadCover(t.art.replace(/\/\d+x\d+bb\./, '/1200x1200bb.'));
+        },
     };
 }
