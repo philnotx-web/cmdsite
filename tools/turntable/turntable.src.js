@@ -15,7 +15,7 @@ import {
     CatmullRomCurve3,
     DirectionalLight, PMREMGenerator, CanvasTexture, DataTexture, Euler,
     SRGBColorSpace, NeutralToneMapping, PCFShadowMap, RGBAFormat, LinearFilter, LinearMipmapLinearFilter,
-    RepeatWrapping, BackSide,
+    RepeatWrapping, BackSide, DoubleSide, Quaternion,
 } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
@@ -630,7 +630,10 @@ export function createTurntable(host, opts) {
         paintDisc(nextCanvas.getContext('2d'), t, img);
         return true;
     }
+    let markShown;
+    const firstShown = new Promise((ok) => { markShown = ok; });
     function showPrinted() {
+        markShown();
         const g = discCanvas.getContext('2d');
         g.clearRect(0, 0, DISC_PX, DISC_PX);
         g.drawImage(nextCanvas, 0, 0);
@@ -1017,6 +1020,7 @@ export function createTurntable(host, opts) {
             wake();
         },
         setTheme,
+        ready: firstShown, // the first record is on the platter, cover and all
         // turn the deck from outside (yaw, tilt in radians); null hands it back to the pointer
         setTurn(yaw, tilt) {
             if (yaw === null) {
@@ -1078,6 +1082,45 @@ export function createLogoBox(host, opts = {}) {
     });
     const shell = new Mesh(new RoundedBoxGeometry(BW, BH, BD, 6, .26), glass);
     box.add(shell);
+    // ---- the liquid inside: an inner rounded volume, cut off by a shader at its surface. The
+    // surface is a plane through the box's centre (offset by the fill level); its tilt is kept
+    // level by a damped spring, so when the box turns the liquid first turns with it, then
+    // runs back, overshoots a little and settles.
+    const liquidU = {
+        uNormal: { value: new Vector3(0, 1, 0) },  // the surface's normal, in world space
+        uLevel: { value: -.14 },                   // how far below the centre the surface sits
+        uSurface: { value: new Color(0xe2a48a) },  // the top of the liquid, and its meniscus
+    };
+    const liquidMat = new MeshStandardMaterial({ color: 0xc98262, roughness: .3, metalness: 0, side: DoubleSide });
+    liquidMat.onBeforeCompile = (shader) => {
+        Object.assign(shader.uniforms, liquidU);
+        shader.vertexShader = shader.vertexShader
+            .replace('#include <common>', '#include <common>\nvarying vec3 vLiquidPos;')
+            .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLiquidPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+        shader.fragmentShader = shader.fragmentShader
+            .replace('#include <common>', '#include <common>\nvarying vec3 vLiquidPos;\nuniform vec3 uNormal;\nuniform float uLevel;\nuniform vec3 uSurface;')
+            .replace('void main() {', 'void main() {\n\tfloat liquidH = dot(vLiquidPos, uNormal) - uLevel;\n\tif (liquidH > 0.0) discard;')
+            // seen from inside, through the cut, the back faces stand in for the flat surface;
+            // the walls get a light line where they meet it
+            .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n\tif (!gl_FrontFacing) gl_FragColor.rgb = uSurface;\n\telse gl_FragColor.rgb = mix(gl_FragColor.rgb, uSurface, smoothstep(-0.045, 0.0, liquidH) * 0.8);');
+    };
+    const liquid = new Mesh(new RoundedBoxGeometry(BW - .1, BH - .1, BD - .1, 6, .21), liquidMat);
+    box.add(liquid);
+    const slosh = { n: new Vector3(0, 1, 0), v: new Vector3() }; // the surface normal in the box's own frame, and how fast it moves
+    const qBox = new Quaternion();
+    const upInBox = new Vector3();
+    const tmpV = new Vector3();
+    function stepLiquid(dt) {
+        qBox.setFromEuler(box.rotation);
+        upInBox.set(0, 1, 0).applyQuaternion(qBox.clone().invert());
+        // a spring pulls the surface back to level; damping takes the swing out of it
+        tmpV.copy(upInBox).sub(slosh.n).multiplyScalar(70).addScaledVector(slosh.v, -4.2);
+        slosh.v.addScaledVector(tmpV, dt);
+        slosh.n.addScaledVector(slosh.v, dt).normalize();
+        liquidU.uNormal.value.copy(slosh.n).applyQuaternion(qBox);
+        return slosh.v.lengthSq() > 1e-6 || slosh.n.distanceToSquared(upInBox) > 1e-6;
+    }
+
     // a fine darker rim round the edges, as thick glass shows where it turns away
     const rimMat = new MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: .1, side: BackSide, depthWrite: false });
     const rimShell = new Mesh(new RoundedBoxGeometry(BW + .05, BH + .05, BD + .05, 6, .285), rimMat);
@@ -1250,9 +1293,13 @@ export function createLogoBox(host, opts = {}) {
     const motion = () => !opts.reduceMotion?.matches;
     // a soft overshoot at the end, like something with a little weight settling
     const easeOutBack = (x) => 1 + 2.2 * (x - 1) ** 3 + 1.2 * (x - 1) ** 2;
-    function render() {
+    function pose() {
         const rot = REST.x + lean.x + hand.x - (Math.PI / 2) * roll;
         box.rotation.set(rot, REST.y * (1 - roll * .35) + lean.y + hand.y, 0);
+        return rot;
+    }
+    function render() {
+        const rot = pose();
         // each printed side fades as it turns away, so no sliver of it shows along the edge
         // (seen from a little above, so a side that has rolled to the top still faces the camera a bit)
         front.mat.opacity = clamp(Math.cos(rot) * 2.2 - .75, 0, 1);
@@ -1286,8 +1333,10 @@ export function createLogoBox(host, opts = {}) {
         hand.y += (hand.ty - hand.y) * fh;
         const settled = Math.abs(lean.tx - lean.x) < 1e-4 && Math.abs(lean.ty - lean.y) < 1e-4
             && Math.abs(hand.tx - hand.x) < 1e-4 && Math.abs(hand.ty - hand.y) < 1e-4;
+        pose();
+        const sloshing = stepLiquid(dt);
         render();
-        if (anim || home || !settled) wake();
+        if (anim || home || !settled || sloshing) wake();
     }
     function wake() {
         if (rafId) return;
@@ -1343,6 +1392,8 @@ export function createLogoBox(host, opts = {}) {
         colors = { ...colors, ...c };
         glass.color.set(colors.glass);
         glass.opacity = colors.glassA;
+        liquidMat.color.set(colors.liquid || colors.dot);
+        liquidU.uSurface.value.set(colors.liquid || colors.dot).lerp(new Color(0xffffff), .38);
         scene.environmentIntensity = colors.dark ? .6 : 1.35;
         rimMat.opacity = colors.dark ? .35 : .09;
         sheenBase = colors.dark ? .45 : .95;
@@ -1370,6 +1421,9 @@ export function createLogoBox(host, opts = {}) {
     new ResizeObserver(frame).observe(host);
     document.fonts?.ready.then(() => { paintFront(); paintUnder(); render(); });
     setTheme(opts.colors || {});
+    pose();
+    slosh.n.set(0, 1, 0).applyQuaternion(qBox.setFromEuler(box.rotation).invert());
+    stepLiquid(0);
     frame();
     return { flip, setTheme, setSong };
 }

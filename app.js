@@ -499,14 +499,16 @@
         .then(({ createLogoBox }) => {
             logoBox = createLogoBox($('.logo3d'), { colors: readLogoColors(), reduceMotion, grip: brand });
             if (current) logoBox.setSong(current);
-            $('.logo3d').classList.add('is-3d');
+            // shown once the lettering is in and drawn, so it appears whole
+            const show = () => requestAnimationFrame(() => requestAnimationFrame(() => $('.logo3d').classList.add('is-3d')));
+            (document.fonts?.ready || Promise.resolve()).then(show, show);
             const up = () => logoBox.flip(true);
             const down = () => logoBox.flip(false);
             brand.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') up(); });
             brand.addEventListener('pointerleave', (e) => { if (!brand.classList.contains('is-grabbed')) down(); });
             brand.addEventListener('lostpointercapture', () => { if (!brand.matches(':hover')) down(); });
         })
-        .catch(() => { /* the flat logo stays */ });
+        .catch(() => { $('.logo3d').classList.add('no-3d'); }); // no WebGL: the flat box
 
     deckModule
         .then(({ createTurntable }) => createTurntable(ttHost, { onToggle: toggle, colors: readTurntableColors(), reduceMotion }))
@@ -515,10 +517,16 @@
             if (current) { tt.setTrack(current, false); renderPlayedInfo(); renderTime(); }
             tt.setPlaying(playing);
             flatRecord.classList.remove('is-spinning');
-            ttHost.classList.add('is-3d');
+            // shown once the first record is on, cover and all (or after a moment, if the cover is slow)
+            Promise.race([tt.ready, new Promise((ok) => setTimeout(ok, 1500))])
+                .then(() => requestAnimationFrame(() => ttHost.classList.add('is-3d')));
             setTimeout(queueScrollTurn, 950); // once it has turned in
         })
-        .catch((err) => { console.warn('3D turntable unavailable:', err); });
+        .catch((err) => {
+            console.warn('3D turntable unavailable:', err);
+            ttHost.classList.add('no-3d'); // the flat record
+            flatRecord.classList.toggle('is-spinning', playing && !reduceMotion.matches);
+        });
 
     // ---- on phones the deck turns as the page scrolls past it ---------------------------------
     // From a little turned one way as it comes up the screen to the other way as it leaves.

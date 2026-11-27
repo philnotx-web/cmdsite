@@ -81,7 +81,7 @@
     --tt-metal: .75;   /* brushed graphite */
     --glass: 58 61 69;
     --glass-tint: #3a3d45;
-    --glass-a: .78;
+    --glass-a: .58;
     --glass-edge: rgba(255, 255, 255, .22);
     --tt-rough: .75;
 }
@@ -285,7 +285,8 @@ button, input { font: inherit; color: inherit; }
 }
 .brand:hover .logo-cube,
 .brand:focus-visible .logo-cube { transform: rotateX(90deg); }
-.logo-cube { border-radius: var(--r); }
+.logo-cube { border-radius: var(--r); opacity: 0; }
+.logo3d.no-3d .logo-cube { opacity: 1; transition: opacity .4s var(--out); }
 .logo-face { border-radius: var(--r); background: rgb(var(--glass) / var(--glass-a)); box-shadow: inset 0 0 0 1px var(--glass-edge); }
 .logo-canvas {
     position: absolute;
@@ -295,10 +296,13 @@ button, input { font: inherit; color: inherit; }
     height: calc(100% + 60px);
     pointer-events: none;
     opacity: 0;
-    transition: opacity .3s var(--out);
+    transform: translateY(6px) scale(.94);
+    transition: opacity .8s var(--out), transform 1s var(--out);
 }
-.logo3d.is-3d .logo-canvas { opacity: 1; }
-.logo3d.is-3d .logo-cube { opacity: 0; transition: opacity .2s var(--out); }
+/* nothing stands in at its place while it loads: it fades in, whole, as the first thing there */
+.logo3d.is-3d .logo-canvas { opacity: 1; transform: none; }
+.logo-shadow { opacity: 0; }
+.logo3d.is-3d .logo-shadow, .logo3d.no-3d .logo-shadow { opacity: 1; }
 .logo-cube > span {
     position: absolute;
     -webkit-backface-visibility: hidden;
@@ -574,7 +578,8 @@ button, input { font: inherit; color: inherit; }
     from { opacity: 0; transform: translateY(18px) scale(.98); }
     to { opacity: 1; transform: none; }
 }
-.tt.is-3d .tt-flat { opacity: 0; pointer-events: none; transition: opacity .3s var(--out); }
+.tt-flat { opacity: 0; pointer-events: none; }
+.tt.no-3d .tt-flat { opacity: 1; pointer-events: auto; transition: opacity .4s var(--out); }
 
 /* a flat record for browsers without WebGL */
 .tt-flat {
