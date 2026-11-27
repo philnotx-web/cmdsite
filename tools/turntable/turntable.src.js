@@ -15,9 +15,10 @@ import {
     CatmullRomCurve3,
     DirectionalLight, PMREMGenerator, CanvasTexture, DataTexture, Euler,
     SRGBColorSpace, NeutralToneMapping, PCFShadowMap, RGBAFormat, LinearFilter, LinearMipmapLinearFilter,
-    RepeatWrapping,
+    RepeatWrapping, BackSide,
 } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 
 const SPIN = 200;              // deg/s: 33⅓ rpm
 const TAU = Math.PI * 2;
@@ -709,6 +710,7 @@ export function createTurntable(host, opts) {
     let turn = { yaw: 0, tilt: 0, yawT: 0, tiltT: 0 }; // how the deck is turned, and where it's headed
     let drag = null;
     let homeTimer = 0;
+    let scrollTurn = false; // on phones the page turns the deck as it scrolls, so it stays put after a swipe
     let visible = true;
     let rafId = 0;
     let needsFrame = false;
@@ -882,6 +884,7 @@ export function createTurntable(host, opts) {
 
     function goHomeLater() {
         clearTimeout(homeTimer);
+        if (scrollTurn) return;
         homeTimer = setTimeout(() => {
             if (drag) return;
             const from = { y: turn.yawT, t: turn.tiltT };
@@ -1014,8 +1017,313 @@ export function createTurntable(host, opts) {
             wake();
         },
         setTheme,
+        // turn the deck from outside (yaw, tilt in radians); null hands it back to the pointer
+        setTurn(yaw, tilt) {
+            if (yaw === null) {
+                scrollTurn = false;
+                goHomeLater();
+                return;
+            }
+            scrollTurn = true;
+            if (drag) return;
+            turn.yawT = clamp(yaw, -TURN.yaw, TURN.yaw);
+            turn.tiltT = clamp(tilt, TURN.tiltDown, TURN.tiltUp);
+            wake();
+        },
         preload(t) {
             if (t?.art) loadCover(t.art.replace(/\/\d+x\d+bb\./, '/1200x1200bb.'));
         },
     };
+}
+
+// ---- the logo: a small rounded glass box ----------------------------------------------------
+// stole.cc on its front; on hover it rolls up a quarter turn to show its underside, which
+// carries the song that's on. Real rounded geometry, lit like the deck, rendered only while
+// it moves.
+
+const MARK_BODY = typeof Path2D === 'function' ? new Path2D('M7 3h8.5v13.5H29V25a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4Z') : null;
+
+export function createLogoBox(host, opts = {}) {
+    const canvas = document.createElement('canvas');
+    canvas.className = 'logo-canvas';
+    host.appendChild(canvas);
+    let renderer;
+    try {
+        renderer = new WebGLRenderer({ canvas, antialias: true, alpha: true });
+    } catch (err) {
+        canvas.remove();
+        throw err;
+    }
+    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2.5));
+    renderer.outputColorSpace = SRGBColorSpace;
+    renderer.toneMapping = NeutralToneMapping;
+    renderer.setClearColor(0x000000, 0);
+
+    const scene = new Scene();
+    const pmrem = new PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), .04).texture;
+    pmrem.dispose();
+    const keyLight = new DirectionalLight(0xffffff, 1.4);
+    keyLight.position.set(-2, 6, 5);
+    scene.add(keyLight);
+
+    // box proportions follow the CSS box (--w × --h); depth equals height, so the underside is as tall as the front
+    const BW = 3.75, BH = 1, BD = 1;
+    const box = new Group();
+    scene.add(box);
+    const glass = new MeshPhysicalMaterial({
+        color: 0xffffff, transparent: true, opacity: .62, roughness: .14, metalness: 0,
+        clearcoat: 1, clearcoatRoughness: .08, iridescence: .35, iridescenceIOR: 1.3,
+        specularIntensity: 1, envMapIntensity: 1.2,
+    });
+    const shell = new Mesh(new RoundedBoxGeometry(BW, BH, BD, 6, .26), glass);
+    box.add(shell);
+    // a fine darker rim round the edges, as thick glass shows where it turns away
+    const rimMat = new MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: .1, side: BackSide, depthWrite: false });
+    const rimShell = new Mesh(new RoundedBoxGeometry(BW + .05, BH + .05, BD + .05, 6, .285), rimMat);
+    box.add(rimShell);
+    // the reflection: a bright streak along the top edge and a soft sheen across the face, printed
+    // on a sheet just in front of the front and of the underside, so it turns with the box
+    const sheenTex = (() => {
+        const cv = document.createElement('canvas');
+        cv.width = 1024;
+        cv.height = 280;
+        const g = cv.getContext('2d');
+        const along = g.createLinearGradient(0, 0, cv.width, 0); // fades out towards both ends
+        along.addColorStop(0, 'rgba(255,255,255,0)');
+        along.addColorStop(.12, 'rgba(255,255,255,1)');
+        along.addColorStop(.75, 'rgba(255,255,255,.85)');
+        along.addColorStop(1, 'rgba(255,255,255,0)');
+        g.fillStyle = along;
+        g.filter = 'blur(3px)';
+        g.fillRect(40, 30, cv.width - 80, 7);
+        g.fillRect(40, 30, cv.width - 80, 7); // twice, so the line itself is bright
+        g.filter = 'blur(14px)';
+        g.globalAlpha = .35;
+        g.fillRect(60, 40, cv.width - 120, 46);
+        // below the bright edge, the darker band of the room it mirrors: on light glass the
+        // reflection reads through this contrast
+        const band = g.createLinearGradient(0, 0, cv.width, 0);
+        band.addColorStop(0, 'rgba(25,32,45,0)');
+        band.addColorStop(.2, 'rgba(25,32,45,1)');
+        band.addColorStop(.8, 'rgba(25,32,45,1)');
+        band.addColorStop(1, 'rgba(25,32,45,0)');
+        g.fillStyle = band;
+        g.filter = 'blur(9px)';
+        g.globalAlpha = .13;
+        g.fillRect(70, 64, cv.width - 140, 26);
+        g.filter = 'none';
+        g.globalAlpha = 1;
+        const tex = new CanvasTexture(cv);
+        tex.colorSpace = SRGBColorSpace;
+        return tex;
+    })();
+    const sheenH = (BW - .1) * 280 / 1024;
+    function sheenSheet(onUnderside) {
+        const mat = new MeshBasicMaterial({ map: sheenTex, transparent: true, depthWrite: false, opacity: .9 });
+        const m = new Mesh(new PlaneGeometry(BW - .1, sheenH), mat);
+        if (onUnderside) {
+            // the underside's top edge, once it has rolled up, is the one along the front
+            m.rotation.x = Math.PI / 2;
+            m.position.set(0, -BH / 2 - .006, BD / 2 - sheenH / 2 + .02);
+        } else m.position.set(0, BH / 2 - sheenH / 2 + .02, BD / 2 + .006);
+        box.add(m);
+        return mat;
+    }
+    const sheen = sheenSheet(false);
+    const sheenUnder = sheenSheet(true);
+
+    // the two printed faces
+    const PX = 160; // canvas pixels per unit
+    function face(normalY) {
+        const cv = document.createElement('canvas');
+        cv.width = Math.round((BW - .1) * PX);
+        cv.height = Math.round((BH - .1) * PX);
+        const tex = new CanvasTexture(cv);
+        tex.colorSpace = SRGBColorSpace;
+        tex.anisotropy = 4;
+        const m = new Mesh(new PlaneGeometry(BW - .1, BH - .1), new MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+        if (normalY) { m.rotation.x = Math.PI / 2; m.position.y = -BH / 2 - .003; } else m.position.z = BD / 2 + .003;
+        box.add(m);
+        return { cv, tex, g: cv.getContext('2d'), mat: m.material };
+    }
+    const front = face(0);
+    const under = face(-1);
+
+    let colors = { ink: '#111214', dot: '#c98262', tld: '#98a2ad', glass: '#ffffff', glassA: .62, dark: false };
+    let song = null;
+    let songImg = null;
+
+    function paintFront() {
+        const { g, cv, tex } = front;
+        const h = cv.height;
+        g.clearRect(0, 0, cv.width, cv.height);
+        const fs = Math.round(h * .42);
+        g.font = `600 ${fs}px Inter, system-ui, sans-serif`;
+        g.textBaseline = 'middle';
+        const parts = [['stole', colors.ink], ['.', colors.dot], ['cc', colors.tld]];
+        const disc = h * .5;
+        const gap = h * .25;
+        const textW = parts.reduce((w, [t]) => w + g.measureText(t).width, 0);
+        let x = (cv.width - (disc + gap + textW)) / 2;
+        const cy = h / 2;
+        // the mark: a square with a corner taken, the piece floating off beside it (32-unit grid, as icon.svg)
+        g.save();
+        g.translate(x, cy - disc / 2);
+        g.scale(disc / 32, disc / 32);
+        g.fillStyle = colors.ink;
+        g.fill(MARK_BODY);
+        g.translate(24, 8);
+        g.rotate(14 * DEG);
+        g.fillStyle = colors.dot;
+        g.beginPath();
+        g.roundRect(-4.5, -4.5, 9, 9, 2.2);
+        g.fill();
+        g.restore();
+        x += disc + gap;
+        for (const [t, c] of parts) {
+            g.fillStyle = c;
+            g.fillText(t, x, cy + fs * .04);
+            x += g.measureText(t).width;
+        }
+        tex.needsUpdate = true;
+    }
+
+    function paintUnder() {
+        const { g, cv, tex } = under;
+        const h = cv.height;
+        g.clearRect(0, 0, cv.width, cv.height);
+        const pad = h * .26;
+        let x = pad;
+        const art = h * .58;
+        if (songImg) {
+            g.save();
+            g.beginPath();
+            g.roundRect(x, (h - art) / 2, art, art, art * .22);
+            g.clip();
+            g.drawImage(songImg, x, (h - art) / 2, art, art);
+            g.restore();
+            x += art + h * .2;
+        }
+        const fs = Math.round(h * .34);
+        g.font = `600 ${fs}px Inter, system-ui, sans-serif`;
+        g.textBaseline = 'middle';
+        g.fillStyle = colors.ink;
+        let title = song?.title || 'stole.cc';
+        const room = cv.width - x - pad;
+        if (g.measureText(title).width > room) {
+            while (title.length > 1 && g.measureText(`${title}…`).width > room) title = title.slice(0, -1);
+            title = `${title.trimEnd()}…`;
+        }
+        g.fillText(title, x, h / 2 + fs * .04);
+        tex.needsUpdate = true;
+    }
+
+    // camera: a touch above, framed so the box fills most of the canvas width
+    const camera = new PerspectiveCamera(30, 1, .1, 100);
+    function frame() {
+        const w = canvas.clientWidth || 1;
+        const h = canvas.clientHeight || 1;
+        renderer.setSize(w, h, false);
+        camera.aspect = w / h;
+        // the box stands in for the CSS box it's drawn over (host), so it's sized to match it
+        // (a little smaller, since it's seen at an angle and its near corners come forward)
+        const visibleW = (BW * w) / ((host.clientWidth || w * .8) * .9);
+        const dist = visibleW / camera.aspect / 2 / Math.tan((camera.fov * DEG) / 2);
+        camera.position.set(0, dist * .3, dist);
+        camera.lookAt(0, 0, 0);
+        camera.updateProjectionMatrix();
+        render();
+    }
+
+    let rafId = 0;
+    let anim = null;
+    let roll = 0;                 // 0 = front, 1 = rolled up to the underside
+    let sheenBase = .9;
+    const REST = { x: .16, y: -.2 }; // a three-quarter view: some of the top and the right end
+    const lean = { x: 0, y: 0, tx: 0, ty: 0 };
+    let last = performance.now();
+    const motion = () => !opts.reduceMotion?.matches;
+    // a soft overshoot at the end, like something with a little weight settling
+    const easeOutBack = (x) => 1 + 2.2 * (x - 1) ** 3 + 1.2 * (x - 1) ** 2;
+    function render() {
+        const rot = REST.x + lean.x - (Math.PI / 2) * roll;
+        box.rotation.set(rot, REST.y * (1 - roll * .35) + lean.y, 0);
+        // each printed side fades as it turns away, so no sliver of it shows along the edge
+        // (seen from a little above, so a side that has rolled to the top still faces the camera a bit)
+        front.mat.opacity = clamp(Math.cos(rot) * 2.2 - .75, 0, 1);
+        sheen.opacity = sheenBase * clamp(Math.cos(rot) * 2 - .6, 0, 1);
+        sheenUnder.opacity = sheenBase * clamp(-Math.sin(rot) * 2 - .6, 0, 1);
+        under.mat.opacity = clamp(-Math.sin(rot) * 2.2 - .75, 0, 1);
+        renderer.render(scene, camera);
+    }
+    function loop(now) {
+        rafId = 0;
+        const dt = Math.min(.064, (now - last) / 1000);
+        last = now;
+        if (anim) {
+            const k = Math.min(1, (now - anim.t0) / anim.ms);
+            roll = anim.from + (anim.to - anim.from) * easeOutBack(k);
+            if (k >= 1) anim = null;
+        }
+        const f = 1 - Math.exp(-dt / .12);
+        lean.x += (lean.tx - lean.x) * f;
+        lean.y += (lean.ty - lean.y) * f;
+        const settled = Math.abs(lean.tx - lean.x) < 1e-4 && Math.abs(lean.ty - lean.y) < 1e-4;
+        render();
+        if (anim || !settled) wake();
+    }
+    function wake() {
+        if (rafId) return;
+        last = performance.now();
+        rafId = requestAnimationFrame(loop);
+    }
+    // it leans a little towards the pointer, wherever it is on the page
+    addEventListener('pointermove', (e) => {
+        if (e.pointerType !== 'mouse' || !motion()) return;
+        const r = host.getBoundingClientRect();
+        const dx = (e.clientX - (r.left + r.width / 2)) / innerWidth;
+        const dy = (e.clientY - (r.top + r.height / 2)) / innerHeight;
+        lean.ty = clamp(dx * .9, -.3, .45);
+        lean.tx = clamp(dy * .5, -.12, .2);
+        wake();
+    }, { passive: true });
+    function flip(up) {
+        anim = { from: roll, to: up ? 1 : 0, t0: performance.now(), ms: motion() ? 520 : 1 };
+        wake();
+    }
+
+    function setTheme(c) {
+        colors = { ...colors, ...c };
+        glass.color.set(colors.glass);
+        glass.opacity = colors.glassA;
+        scene.environmentIntensity = colors.dark ? .6 : 1.35;
+        rimMat.opacity = colors.dark ? .35 : .09;
+        sheenBase = colors.dark ? .45 : .95;
+        paintFront();
+        paintUnder();
+        render();
+    }
+
+    async function setSong(t) {
+        song = t;
+        songImg = null;
+        paintUnder();
+        render();
+        if (!t?.art) return;
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = t.art.replace(/\/\d+x\d+bb\./, '/120x120bb.');
+        try { await img.decode(); } catch { return; }
+        if (song !== t) return;
+        songImg = img;
+        paintUnder();
+        render();
+    }
+
+    new ResizeObserver(frame).observe(host);
+    document.fonts?.ready.then(() => { paintFront(); paintUnder(); render(); });
+    setTheme(opts.colors || {});
+    frame();
+    return { flip, setTheme, setSong };
 }
