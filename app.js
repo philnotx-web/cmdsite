@@ -497,15 +497,14 @@
     const brand = $('.brand');
     deckModule
         .then(({ createLogoBox }) => {
-            logoBox = createLogoBox($('.logo3d'), { colors: readLogoColors(), reduceMotion });
+            logoBox = createLogoBox($('.logo3d'), { colors: readLogoColors(), reduceMotion, grip: brand });
             if (current) logoBox.setSong(current);
             $('.logo3d').classList.add('is-3d');
             const up = () => logoBox.flip(true);
             const down = () => logoBox.flip(false);
             brand.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') up(); });
-            brand.addEventListener('pointerleave', down);
-            brand.addEventListener('focus', up);
-            brand.addEventListener('blur', down);
+            brand.addEventListener('pointerleave', (e) => { if (!brand.classList.contains('is-grabbed')) down(); });
+            brand.addEventListener('lostpointercapture', () => { if (!brand.matches(':hover')) down(); });
         })
         .catch(() => { /* the flat logo stays */ });
 

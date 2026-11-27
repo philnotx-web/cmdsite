@@ -1242,13 +1242,17 @@ export function createLogoBox(host, opts = {}) {
     let sheenBase = .9;
     const REST = { x: .16, y: -.2 }; // a three-quarter view: some of the top and the right end
     const lean = { x: 0, y: 0, tx: 0, ty: 0 };
+    const hand = { x: 0, y: 0, tx: 0, ty: 0 }; // how far it has been turned by dragging
+    let drag = null;
+    let home = null;      // gliding back after a drag
+    let homeTimer = 0;
     let last = performance.now();
     const motion = () => !opts.reduceMotion?.matches;
     // a soft overshoot at the end, like something with a little weight settling
     const easeOutBack = (x) => 1 + 2.2 * (x - 1) ** 3 + 1.2 * (x - 1) ** 2;
     function render() {
-        const rot = REST.x + lean.x - (Math.PI / 2) * roll;
-        box.rotation.set(rot, REST.y * (1 - roll * .35) + lean.y, 0);
+        const rot = REST.x + lean.x + hand.x - (Math.PI / 2) * roll;
+        box.rotation.set(rot, REST.y * (1 - roll * .35) + lean.y + hand.y, 0);
         // each printed side fades as it turns away, so no sliver of it shows along the edge
         // (seen from a little above, so a side that has rolled to the top still faces the camera a bit)
         front.mat.opacity = clamp(Math.cos(rot) * 2.2 - .75, 0, 1);
@@ -1266,12 +1270,24 @@ export function createLogoBox(host, opts = {}) {
             roll = anim.from + (anim.to - anim.from) * easeOutBack(k);
             if (k >= 1) anim = null;
         }
+        if (home) {
+            const k = Math.min(1, (now - home.t0) / home.ms);
+            const e = k < .5 ? 4 * k ** 3 : 1 - (-2 * k + 2) ** 3 / 2;
+            hand.tx = home.x * (1 - e);
+            hand.ty = home.y * (1 - e);
+            if (k >= 1) home = null;
+        }
         const f = 1 - Math.exp(-dt / .12);
         lean.x += (lean.tx - lean.x) * f;
         lean.y += (lean.ty - lean.y) * f;
-        const settled = Math.abs(lean.tx - lean.x) < 1e-4 && Math.abs(lean.ty - lean.y) < 1e-4;
+        // the hand is followed closely, like the deck
+        const fh = 1 - Math.exp(-dt / .045);
+        hand.x += (hand.tx - hand.x) * fh;
+        hand.y += (hand.ty - hand.y) * fh;
+        const settled = Math.abs(lean.tx - lean.x) < 1e-4 && Math.abs(lean.ty - lean.y) < 1e-4
+            && Math.abs(hand.tx - hand.x) < 1e-4 && Math.abs(hand.ty - hand.y) < 1e-4;
         render();
-        if (anim || !settled) wake();
+        if (anim || home || !settled) wake();
     }
     function wake() {
         if (rafId) return;
@@ -1292,6 +1308,36 @@ export function createLogoBox(host, opts = {}) {
         anim = { from: roll, to: up ? 1 : 0, t0: performance.now(), ms: motion() ? 520 : 1 };
         wake();
     }
+
+    // drag to turn it a little, like the deck; it holds a moment after letting go, then glides back
+    const grip = opts.grip || host;
+    grip.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        clearTimeout(homeTimer);
+        home = null;
+        drag = { id: e.pointerId, x: e.clientX, y: e.clientY, hx: hand.tx, hy: hand.ty };
+        grip.setPointerCapture(e.pointerId);
+        grip.classList.add('is-grabbed');
+    });
+    grip.addEventListener('pointermove', (e) => {
+        if (!drag || e.pointerId !== drag.id) return;
+        const w = grip.clientWidth || 150;
+        hand.ty = clamp(drag.hy + ((e.clientX - drag.x) / w) * .9, -.35, .35);
+        hand.tx = clamp(drag.hx + ((e.clientY - drag.y) / w) * .9, -.2, .2);
+        wake();
+    });
+    function letGo(e) {
+        if (!drag || e.pointerId !== drag.id) return;
+        drag = null;
+        grip.classList.remove('is-grabbed');
+        clearTimeout(homeTimer);
+        homeTimer = setTimeout(() => {
+            home = { x: hand.tx, y: hand.ty, t0: performance.now(), ms: motion() ? 700 : 1 };
+            wake();
+        }, 1800);
+    }
+    grip.addEventListener('pointerup', letGo);
+    grip.addEventListener('pointercancel', letGo);
 
     function setTheme(c) {
         colors = { ...colors, ...c };

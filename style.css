@@ -259,9 +259,13 @@ button, input { font: inherit; color: inherit; }
 .brand {
     display: inline-block;
     border-radius: 12px;
-    text-decoration: none;
+    cursor: grab;
+    touch-action: pan-y;    /* a sideways drag turns it; up and down still scrolls the page */
+    user-select: none;
+    -webkit-user-select: none;
     -webkit-tap-highlight-color: transparent;
 }
+.brand.is-grabbed { cursor: grabbing; }
 .logo3d {
     --w: 150px;   /* app.js builds the shell to these */
     --h: 40px;
